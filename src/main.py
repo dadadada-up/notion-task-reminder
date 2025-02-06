@@ -151,20 +151,17 @@ def format_message(tasks):
             f"━━━━━━━━━━━━━━━━━━━━━━",
             f"👤 {assignee}的任务清单 (共{total_tasks}条)\n"
         ]
-        
         priority_emojis = {
             'P0': '🔴 重要紧急',
             'P1': '🔵 重要不紧急',
             'P2': '🟡 紧急不重要',
             'P3': '⚪ 不重要不紧急'
         }
-        
         task_counter = 1
         for priority in ['P0', 'P1', 'P2', 'P3']:
             tasks = priorities[priority]
             if not tasks:
-                continue
-                
+                continue   
             message.append(f"\n{priority_emojis[priority]}")
             for task in tasks:
                 message.append(f"{task_counter}. {task['name']}")
