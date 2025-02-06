@@ -1,0 +1,26 @@
+name: Daily Task Reminder
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # 每天早上9点（UTC+8）
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run reminder script
+      run: python src/main.py
