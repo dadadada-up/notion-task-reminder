@@ -1,3 +1,83 @@
+import requests
+from datetime import datetime, timezone
+import pytz
+
+# 配置信息
+NOTION_TOKEN = "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"
+DATABASE_ID = "192ed4b7aaea81859bbbf3ad4ea54b56"
+PUSHPLUS_TOKEN = "3cfcadc8fcf744769292f0170e724ddb"
+
+# 四象限优先级
+PRIORITY_ORDER = {
+    "P0 重要紧急": 0,
+    "P1 重要不紧急": 1,
+    "P2 紧急不重要": 2,
+    "P3 不重要不紧急": 3
+}
+
+def get_notion_tasks():
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json"
+    }
+    
+    # 构建过滤条件
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    
+    body = {
+        "filter": {
+            "and": [
+                {
+                    "or": [
+                        {
+                            "property": "状态",
+                            "status": {
+                                "equals": "还未开始"
+                            }
+                        },
+                        {
+                            "property": "状态",
+                            "status": {
+                                "equals": "进行中"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "property": "开始日期",
+                    "date": {
+                        "on_or_before": today
+                    }
+                }
+            ]
+        },
+        "sorts": [
+            {
+                "property": "四象限",
+                "direction": "ascending"
+            }
+        ]
+    }
+
+    try:
+        print("正在发送请求到Notion API...")
+        response = requests.post(
+            f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
+            headers=headers,
+            json=body
+        )
+        print(f"Notion API响应状态码: {response.status_code}")
+        
+        if response.status_code != 200:
+            print(f"Notion API错误: {response.text}")
+            return {"results": []}
+            
+        return response.json()
+    except Exception as e:
+        print(f"获取Notion任务时出错: {str(e)}")
+        return {"results": []}
+
 def format_message(tasks):
     if not tasks.get('results'):
         return "📋 今日无待处理任务"
@@ -111,3 +191,56 @@ def format_message(tasks):
         messages.append("\n".join(message))
     
     return "\n\n".join(messages)
+
+def send_to_wechat(message):
+    url = "http://www.pushplus.plus/send"
+    data = {
+        "token": PUSHPLUS_TOKEN,
+        "title": "今日待处理任务提醒",
+        "content": message,
+        "template": "txt"
+    }
+    
+    try:
+        print("正在发送消息到PushPlus...")
+        response = requests.post(url, json=data)
+        print(f"PushPlus响应状态码: {response.status_code}")
+        
+        result = response.json()
+        print(f"PushPlus响应内容: {result}")
+        
+        if response.status_code != 200:
+            print(f"HTTP错误: {response.status_code}")
+            return False
+            
+        if result.get('code') != 200:
+            print(f"PushPlus错误: {result.get('msg')}")
+            return False
+            
+        return True
+    except Exception as e:
+        print(f"发送消息时出错: {str(e)}")
+        return False
+
+def main():
+    try:
+        print("开始获取任务...")
+        tasks = get_notion_tasks()
+        print(f"获取到 {len(tasks.get('results', []))} 个任务")
+        
+        print("格式化消息...")
+        message = format_message(tasks)
+        print("消息内容:")
+        print(message)
+        
+        print("发送消息...")
+        if send_to_wechat(message):
+            print("消息发送成功!")
+        else:
+            print("消息发送失败!")
+    except Exception as e:
+        print(f"运行出错: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()
