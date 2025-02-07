@@ -54,28 +54,36 @@ def get_notion_tasks(is_evening=False):
     else:
         # 早上的待办任务查询保持不变
         body = {
-            "and": [
-                {
-                    "or": [
-                        {
-                            "property": "状态",
-                            "status": {
-                                "equals": "还未开始"
+            "filter": {  # 添加 filter 包装
+                "and": [
+                    {
+                        "or": [
+                            {
+                                "property": "状态",
+                                "status": {
+                                    "equals": "还未开始"
+                                }
+                            },
+                            {
+                                "property": "状态",
+                                "status": {
+                                    "equals": "进行中"
+                                }
                             }
-                        },
-                        {
-                            "property": "状态",
-                            "status": {
-                                "equals": "进行中"
-                            }
+                        ]
+                    },
+                    {
+                        "property": "开始日期",
+                        "date": {
+                            "on_or_before": today
                         }
-                    ]
-                },
-                {
-                    "property": "开始日期",
-                    "date": {
-                        "on_or_before": today
                     }
+                ]
+            },
+            "sorts": [
+                {
+                    "property": "四象限",
+                    "direction": "ascending"
                 }
             ]
         }
