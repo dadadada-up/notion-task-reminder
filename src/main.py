@@ -35,19 +35,13 @@ def get_notion_tasks(is_evening=False):
                         "status": {
                             "equals": "已完成"
                         }
-                    },
-                    {
-                        "last_edited_time": {  # 直接使用 last_edited_time
-                            "after": f"{today}T00:00:00Z",
-                            "before": f"{today}T23:59:59Z"
-                        }
                     }
                 ]
             },
             "sorts": [
                 {
-                    "property": "四象限",
-                    "direction": "ascending"
+                    "timestamp": "last_edited_time",
+                    "direction": "descending"
                 }
             ]
         }
@@ -206,7 +200,15 @@ def format_message(tasks_data):
 
 def format_evening_message(tasks_data):
     message = ["📋 今日完成任务统计"]
-    total_tasks = len(tasks_data.get('results', []))
+    
+    # 过滤今天完成的任务
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_tasks = [
+        result for result in tasks_data.get('results', [])
+        if result.get('last_edited_time', '').startswith(today)
+    ]
+    
+    total_tasks = len(today_tasks)
     
     if total_tasks == 0:
         message.append("今天还没有完成任何任务哦！加油！")
@@ -215,7 +217,7 @@ def format_evening_message(tasks_data):
     message.append(f"🎉 今天完成了 {total_tasks} 个任务")
     message.append("")  # 空行
     
-    for idx, result in enumerate(tasks_data.get('results', []), 1):
+    for idx, result in enumerate(today_tasks, 1):
         properties = result.get('properties', {})
         name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
         task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
