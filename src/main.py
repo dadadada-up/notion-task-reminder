@@ -37,10 +37,9 @@ def get_notion_tasks(is_evening=False):
                         }
                     },
                     {
-                        "property": "last_edited_time",  # 使用最后编辑时间
-                        "date": {
-                            "after": f"{today}T00:00:00Z",  # 今天开始
-                            "before": f"{today}T23:59:59Z"  # 今天结束
+                        "last_edited_time": {  # 直接使用 last_edited_time
+                            "after": f"{today}T00:00:00Z",
+                            "before": f"{today}T23:59:59Z"
                         }
                     }
                 ]
