@@ -78,7 +78,50 @@ def get_notion_tasks():
         print(f"获取Notion任务时出错: {str(e)}")
         return {"results": []}
 
-def format_message(tasks):
+def format_message(tasks_data):
+    messages = []
+    tasks_by_assignee = {}
+    
+    # 初始化数据结构
+    for result in tasks_data.get('results', []):
+        properties = result.get('properties', {})
+        
+        # 获取任务信息
+        name = properties.get('名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
+        assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')
+        priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3 不重要不紧急')
+        task_type = properties.get('类型', {}).get('select', {}).get('name', '未分类')
+        due_date = properties.get('截止日期', {}).get('date', {}).get('start', '未设置')
+        
+        # 计算逾期天数
+        days_diff = None
+        if due_date and due_date != '未设置':
+            try:
+                due_datetime = datetime.strptime(due_date, '%Y-%m-%d').date()
+                today = datetime.now().date()
+                days_diff = (due_datetime - today).days
+            except:
+                days_diff = None
+        
+        # 初始化该负责人的任务字典
+        if assignee not in tasks_by_assignee:
+            tasks_by_assignee[assignee] = {
+                'P0': [],
+                'P1': [],
+                'P2': [],
+                'P3': []
+            }
+        
+        # 确定优先级类别
+        priority_key = 'P' + str(PRIORITY_ORDER.get(priority, 3))
+        
+        # 添加任务
+        tasks_by_assignee[assignee][priority_key].append({
+            'name': name,
+            'type': task_type,
+            'due_date': due_date,
+            'days_diff': days_diff
+        })
     
     for assignee, priorities in tasks_by_assignee.items():
         total_tasks = sum(len(tasks) for tasks in priorities.values())
@@ -166,10 +209,20 @@ def main():
     try:
         print("开始获取任务...")
         tasks = get_notion_tasks()
+        
+        if not tasks.get('results'):
+            print("没有获取到任何任务")
+            return
+            
         print(f"获取到 {len(tasks.get('results', []))} 个任务")
         
         print("格式化消息...")
         message = format_message(tasks)
+        
+        if not message.strip():
+            print("没有需要提醒的任务")
+            return
+            
         print("消息内容:")
         print(message)
         
