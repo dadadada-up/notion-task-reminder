@@ -201,14 +201,32 @@ def format_message(tasks_data):
 def format_evening_message(tasks_data):
     message = ["📋 今日完成任务统计"]
     
+    # 添加调试日志
+    print("\n=== 调试信息 ===")
+    print(f"原始任务数量: {len(tasks_data.get('results', []))}")
+    
     # 过滤今天完成的任务
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    print(f"当前UTC日期: {today}")
+    
     today_tasks = [
         result for result in tasks_data.get('results', [])
         if result.get('last_edited_time', '').startswith(today)
     ]
     
+    # 打印每个任务的时间信息
+    print("\n完成任务时间信息:")
+    for result in tasks_data.get('results', []):
+        task_name = result.get('properties', {}).get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
+        edit_time = result.get('last_edited_time', 'unknown')
+        print(f"任务: {task_name}")
+        print(f"编辑时间: {edit_time}")
+        print(f"是否今天完成: {edit_time.startswith(today) if edit_time != 'unknown' else False}")
+        print("---")
+    
     total_tasks = len(today_tasks)
+    print(f"\n今日完成任务数: {total_tasks}")
+    print("=== 调试信息结束 ===\n")
     
     if total_tasks == 0:
         message.append("今天还没有完成任何任务哦！加油！")
