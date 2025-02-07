@@ -37,9 +37,10 @@ def get_notion_tasks(is_evening=False):
                         }
                     },
                     {
-                        "property": "截止日期",
+                        "property": "last_edited_time",  # 使用最后编辑时间
                         "date": {
-                            "equals": today
+                            "after": f"{today}T00:00:00Z",  # 今天开始
+                            "before": f"{today}T23:59:59Z"  # 今天结束
                         }
                     }
                 ]
@@ -90,6 +91,7 @@ def get_notion_tasks(is_evening=False):
     
     try:
         print("正在发送请求到Notion API...")
+        print(f"查询条件: {body}")  # 添加这行来打印查询条件
         response = requests.post(
             f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
             headers=headers,
