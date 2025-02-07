@@ -231,22 +231,32 @@ def send_to_wechat(message):
     }
     
     try:
-        print("正在发送消息到PushPlus...")
-        response = requests.post(url, json=data)
+        print(f"正在发送消息到PushPlus... Token: {PUSHPLUS_TOKEN[:8]}***")
+        print(f"消息内容: {message[:100]}...")  # 只打印前100个字符
+        
+        response = requests.post(url, json=data, timeout=10)  # 添加超时设置
         print(f"PushPlus响应状态码: {response.status_code}")
+        print(f"PushPlus响应头: {dict(response.headers)}")
         
-        result = response.json()
-        print(f"PushPlus响应内容: {result}")
-        
-        if response.status_code != 200:
-            print(f"HTTP错误: {response.status_code}")
-            return False
+        try:
+            result = response.json()
+            print(f"PushPlus响应内容: {result}")
             
-        if result.get('code') != 200:
-            print(f"PushPlus错误: {result.get('msg')}")
+            if result.get('code') != 200:
+                print(f"PushPlus错误: {result.get('msg')}")
+                return False
+        except ValueError as e:
+            print(f"解析响应JSON失败: {str(e)}")
+            print(f"原始响应内容: {response.text}")
             return False
             
         return True
+    except requests.exceptions.Timeout:
+        print("发送消息超时")
+        return False
+    except requests.exceptions.RequestException as e:
+        print(f"请求异常: {str(e)}")
+        return False
     except Exception as e:
         print(f"发送消息时出错: {str(e)}")
         return False

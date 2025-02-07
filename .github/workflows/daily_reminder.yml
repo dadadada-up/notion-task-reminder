@@ -29,4 +29,10 @@ jobs:
         DATABASE_ID: ${{ secrets.DATABASE_ID }}
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
         REMINDER_TYPE: ${{ github.event.schedule == '0 14 * * *' && 'evening' || 'morning' }}
-      run: python src/main.py
+      run: |
+        echo "检查环境变量是否设置..."
+        if [ -z "$PUSHPLUS_TOKEN" ]; then
+          echo "错误: PUSHPLUS_TOKEN 未设置"
+          exit 1
+        fi
+        python src/main.py
