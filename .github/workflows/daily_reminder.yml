@@ -30,9 +30,5 @@ jobs:
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
         REMINDER_TYPE: ${{ github.event.schedule == '0 14 * * *' && 'evening' || 'morning' }}
       run: |
-        echo "检查环境变量是否设置..."
-        if [ -z "$PUSHPLUS_TOKEN" ]; then
-          echo "错误: PUSHPLUS_TOKEN 未设置"
-          exit 1
-        fi
+        echo "PUSHPLUS_TOKEN=${PUSHPLUS_TOKEN:0:8}***"  # 安全地打印token前8位
         python src/main.py

@@ -3,10 +3,10 @@ from datetime import datetime, timezone
 import pytz
 import os
 
-# 配置信息
-NOTION_TOKEN = "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"
-DATABASE_ID = "192ed4b7aaea81859bbbf3ad4ea54b56"
-PUSHPLUS_TOKEN = "3cfcadc8fcf744769292f0170e724ddb"
+# 修改配置信息部分
+NOTION_TOKEN = os.environ.get('NOTION_TOKEN', "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")
+DATABASE_ID = os.environ.get('DATABASE_ID', "192ed4b7aaea81859bbbf3ad4ea54b56")
+PUSHPLUS_TOKEN = os.environ.get('PUSHPLUS_TOKEN', "3cfcadc8fcf744769292f0170e724ddb")
 
 # 四象限优先级
 PRIORITY_ORDER = {
@@ -225,44 +225,47 @@ def send_to_wechat(message):
     url = "http://www.pushplus.plus/send"
     data = {
         "token": PUSHPLUS_TOKEN,
-        "title": "今日待处理任务提醒",
+        "title": "任务提醒",  # 简化标题
         "content": message,
-        "template": "txt"
+        "template": "txt",
+        "channel": "wechat"  # 明确指定渠道
     }
     
     try:
-        print(f"正在发送消息到PushPlus... Token: {PUSHPLUS_TOKEN[:8]}***")
-        print(f"消息内容: {message[:100]}...")  # 只打印前100个字符
+        print(f"正在发送消息到PushPlus...")
+        print(f"请求URL: {url}")
+        print(f"请求数据: {data}")
         
-        response = requests.post(url, json=data, timeout=10)  # 添加超时设置
-        print(f"PushPlus响应状态码: {response.status_code}")
-        print(f"PushPlus响应头: {dict(response.headers)}")
+        response = requests.post(url, json=data, timeout=10)
+        print(f"响应状态码: {response.status_code}")
+        print(f"响应头: {dict(response.headers)}")
+        print(f"响应内容: {response.text}")
         
-        try:
+        if response.status_code == 200:
             result = response.json()
-            print(f"PushPlus响应内容: {result}")
-            
-            if result.get('code') != 200:
-                print(f"PushPlus错误: {result.get('msg')}")
+            if result.get('code') == 200:
+                print("消息发送成功")
+                return True
+            else:
+                print(f"PushPlus返回错误: {result}")
                 return False
-        except ValueError as e:
-            print(f"解析响应JSON失败: {str(e)}")
-            print(f"原始响应内容: {response.text}")
+        else:
+            print(f"HTTP请求失败: {response.status_code}")
             return False
             
-        return True
-    except requests.exceptions.Timeout:
-        print("发送消息超时")
-        return False
-    except requests.exceptions.RequestException as e:
-        print(f"请求异常: {str(e)}")
-        return False
     except Exception as e:
         print(f"发送消息时出错: {str(e)}")
         return False
 
 def main():
     try:
+        # 检查环境变量
+        print("检查环境变量...")
+        print(f"PUSHPLUS_TOKEN: {PUSHPLUS_TOKEN[:8]}*** (长度: {len(PUSHPLUS_TOKEN)})")
+        print(f"REMINDER_TYPE: {os.environ.get('REMINDER_TYPE', '未设置')}")
+        print(f"NOTION_TOKEN: {'已设置' if NOTION_TOKEN else '未设置'}")
+        print(f"DATABASE_ID: {'已设置' if DATABASE_ID else '未设置'}")
+        
         # 判断是早上还是晚上的提醒
         is_evening = os.environ.get('REMINDER_TYPE') == 'evening'
         
