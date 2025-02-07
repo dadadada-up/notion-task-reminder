@@ -86,11 +86,11 @@ def format_message(tasks_data):
     for result in tasks_data.get('results', []):
         properties = result.get('properties', {})
         
-        # 获取任务信息
-        name = properties.get('名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
-        assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')
+        # 获取任务信息 - 使用正确的属性名称
+        name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
+        assignee = properties.get('负责人', {}).get('people', [{}])[0].get('name', '未分配') if properties.get('负责人', {}).get('people') else '未分配'
         priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3 不重要不紧急')
-        task_type = properties.get('类型', {}).get('select', {}).get('name', '未分类')
+        task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
         due_date = properties.get('截止日期', {}).get('date', {}).get('start', '未设置')
         
         # 计算逾期天数
