@@ -2,7 +2,8 @@ name: Daily Task Reminder
 
 on:
   schedule:
-    - cron: '0 1 * * *'  # 每天早上9点（UTC+8）
+    - cron: '0 0 * * *'  # 每天早上8点（UTC+8）
+    - cron: '0 14 * * *'  # 每天晚上10点（UTC+8）
   workflow_dispatch:      # 允许手动触发
 
 jobs:
@@ -27,4 +28,5 @@ jobs:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         DATABASE_ID: ${{ secrets.DATABASE_ID }}
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+        REMINDER_TYPE: ${{ github.event.schedule == '0 14 * * *' && 'evening' || 'morning' }}
       run: python src/main.py

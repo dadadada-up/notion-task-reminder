@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime, timezone
 import pytz
+import os
 
 # 配置信息
 NOTION_TOKEN = "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"
@@ -15,18 +16,44 @@ PRIORITY_ORDER = {
     "P3 不重要不紧急": 3
 }
 
-def get_notion_tasks():
+def get_notion_tasks(is_evening=False):
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
         "Notion-Version": "2022-06-28",
         "Content-Type": "application/json"
     }
     
-    # 构建过滤条件
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
-    body = {
-        "filter": {
+    if is_evening:
+        # 晚上查询当天已完成的任务
+        body = {
+            "filter": {
+                "and": [
+                    {
+                        "property": "状态",
+                        "status": {
+                            "equals": "已完成"
+                        }
+                    },
+                    {
+                        "property": "截止日期",
+                        "date": {
+                            "equals": today
+                        }
+                    }
+                ]
+            },
+            "sorts": [
+                {
+                    "property": "四象限",
+                    "direction": "ascending"
+                }
+            ]
+        }
+    else:
+        # 早上的待办任务查询保持不变
+        body = {
             "and": [
                 {
                     "or": [
@@ -51,15 +78,8 @@ def get_notion_tasks():
                     }
                 }
             ]
-        },
-        "sorts": [
-            {
-                "property": "四象限",
-                "direction": "ascending"
-            }
-        ]
-    }
-
+        }
+    
     try:
         print("正在发送请求到Notion API...")
         response = requests.post(
@@ -175,6 +195,32 @@ def format_message(tasks_data):
     
     return "\n\n".join(messages)
 
+def format_evening_message(tasks_data):
+    message = ["📋 今日完成任务统计"]
+    total_tasks = len(tasks_data.get('results', []))
+    
+    if total_tasks == 0:
+        message.append("今天还没有完成任何任务哦！加油！")
+        return "\n".join(message)
+    
+    message.append(f"🎉 今天完成了 {total_tasks} 个任务")
+    message.append("")  # 空行
+    
+    for idx, result in enumerate(tasks_data.get('results', []), 1):
+        properties = result.get('properties', {})
+        name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
+        task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
+        priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3 不重要不紧急')
+        
+        message.extend([
+            f"{idx}. {name}",
+            f"📌 类型：{task_type}",
+            f"🏷️ 优先级：{priority}",
+            ""
+        ])
+    
+    return "\n".join(message)
+
 def send_to_wechat(message):
     url = "http://www.pushplus.plus/send"
     data = {
@@ -207,8 +253,11 @@ def send_to_wechat(message):
 
 def main():
     try:
-        print("开始获取任务...")
-        tasks = get_notion_tasks()
+        # 判断是早上还是晚上的提醒
+        is_evening = os.environ.get('REMINDER_TYPE') == 'evening'
+        
+        print(f"开始获取{'已完成' if is_evening else '待处理'}任务...")
+        tasks = get_notion_tasks(is_evening)
         
         if not tasks.get('results'):
             print("没有获取到任何任务")
@@ -217,7 +266,7 @@ def main():
         print(f"获取到 {len(tasks.get('results', []))} 个任务")
         
         print("格式化消息...")
-        message = format_message(tasks)
+        message = format_evening_message(tasks) if is_evening else format_message(tasks)
         
         if not message.strip():
             print("没有需要提醒的任务")
