@@ -288,6 +288,17 @@ def send_to_wechat(message):
 
 def main():
     try:
+        # 添加时间调试信息
+        beijing_tz = pytz.timezone('Asia/Shanghai')
+        utc_now = datetime.now(timezone.utc)
+        beijing_now = utc_now.astimezone(beijing_tz)
+        
+        print(f"\n=== 时间信息 ===")
+        print(f"UTC 时间: {utc_now}")
+        print(f"北京时间: {beijing_now}")
+        print(f"执行类型: {os.environ.get('REMINDER_TYPE', '未设置')}")
+        print("=== 时间信息结束 ===\n")
+        
         # 检查环境变量
         print("检查环境变量...")
         print(f"PUSHPLUS_TOKEN: {PUSHPLUS_TOKEN[:8]}*** (长度: {len(PUSHPLUS_TOKEN)})")
