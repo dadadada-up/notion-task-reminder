@@ -2,7 +2,7 @@ name: Daily Task Reminder
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # UTC 0:00 = 北京时间 8:00
+    - cron: '30 0 * * *'   # UTC 0:30 = 北京时间 8:30
     - cron: '14 14 * * *' # UTC 14:14 = 北京时间 22:14
   workflow_dispatch:      # 允许手动触发
 
