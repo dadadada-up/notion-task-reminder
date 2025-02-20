@@ -2,6 +2,7 @@ import requests
 from datetime import datetime, timezone
 import pytz
 import os
+import time
 
 # 修改配置信息部分
 NOTION_TOKEN = os.environ.get('NOTION_TOKEN', "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")
@@ -109,9 +110,9 @@ def format_message(tasks_data):
     for result in tasks_data.get('results', []):
         properties = result.get('properties', {})
         
-        # 获取任务信息 - 使用正确的属性名称
+        # 修改负责人获取方式
         name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
-        assignee = properties.get('负责人', {}).get('people', [{}])[0].get('name', '未分配') if properties.get('负责人', {}).get('people') else '未分配'
+        assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')  # 改为 select 类型
         priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3 不重要不紧急')
         task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
         due_date = properties.get('截止日期', {}).get('date', {}).get('start', '未设置')
@@ -286,6 +287,24 @@ def send_to_wechat(message):
         print(f"发送消息时出错: {str(e)}")
         return False
 
+def wait_until_send_time():
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    target_time_str = os.environ.get('SEND_TIME', '08:00')  # 默认早上8点
+    
+    now = datetime.now(beijing_tz)
+    target_time = datetime.strptime(target_time_str, '%H:%M').time()
+    target_datetime = datetime.combine(now.date(), target_time)
+    target_datetime = beijing_tz.localize(target_datetime)
+    
+    if now.time() > target_time:
+        # 如果当前时间已经过了目标时间，说明是测试运行，立即发送
+        return
+    
+    wait_seconds = (target_datetime - now).total_seconds()
+    if wait_seconds > 0:
+        print(f"等待发送时间，将在 {target_time_str} 发送...")
+        time.sleep(wait_seconds)
+
 def main():
     try:
         # 添加时间调试信息
@@ -296,6 +315,7 @@ def main():
         print(f"\n=== 时间信息 ===")
         print(f"UTC 时间: {utc_now}")
         print(f"北京时间: {beijing_now}")
+        print(f"目标发送时间: {os.environ.get('SEND_TIME', '08:00')}")
         print(f"执行类型: {os.environ.get('REMINDER_TYPE', '未设置')}")
         print("=== 时间信息结束 ===\n")
         
@@ -306,9 +326,8 @@ def main():
         print(f"NOTION_TOKEN: {'已设置' if NOTION_TOKEN else '未设置'}")
         print(f"DATABASE_ID: {'已设置' if DATABASE_ID else '未设置'}")
         
-        # 判断是早上还是晚上的提醒
+        # 提前获取和处理数据
         is_evening = os.environ.get('REMINDER_TYPE') == 'evening'
-        
         print(f"开始获取{'已完成' if is_evening else '待处理'}任务...")
         tasks = get_notion_tasks(is_evening)
         
@@ -324,9 +343,9 @@ def main():
         if not message.strip():
             print("没有需要提醒的任务")
             return
-            
-        print("消息内容:")
-        print(message)
+        
+        # 等待到指定时间
+        wait_until_send_time()
         
         print("发送消息...")
         if send_to_wechat(message):

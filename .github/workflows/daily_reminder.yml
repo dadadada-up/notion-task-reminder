@@ -2,8 +2,8 @@ name: Daily Task Reminder
 
 on:
   schedule:
-    - cron: '30 0 * * *'   # UTC 0:30 = 北京时间 8:30
-    - cron: '14 14 * * *' # UTC 14:14 = 北京时间 22:14
+    - cron: '55 21 * * *'  # UTC 21:55 = 北京时间 5:55 (提前2小时获取早上数据)
+    - cron: '55 12 * * *'  # UTC 12:55 = 北京时间 20:55 (提前1小时获取晚上数据)
   workflow_dispatch:      # 允许手动触发
 
 jobs:
@@ -28,7 +28,8 @@ jobs:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         DATABASE_ID: ${{ secrets.DATABASE_ID }}
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
-        REMINDER_TYPE: ${{ github.event.schedule == '14 14 * * *' && 'evening' || 'morning' }}
+        REMINDER_TYPE: ${{ github.event.schedule == '55 12 * * *' && 'evening' || 'morning' }}
+        SEND_TIME: ${{ github.event.schedule == '55 12 * * *' && '22:00' || '08:00' }}
       run: |
-        echo "PUSHPLUS_TOKEN=${PUSHPLUS_TOKEN:0:8}***"  # 安全地打印token前8位
+        echo "PUSHPLUS_TOKEN=${PUSHPLUS_TOKEN:0:8}***"
         python src/main.py
