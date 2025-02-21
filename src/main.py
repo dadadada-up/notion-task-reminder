@@ -131,19 +131,21 @@ def format_message(tasks_data):
         if assignee not in tasks_by_assignee:
             tasks_by_assignee[assignee] = []
         
-        # 添加任务
+        # 添加任务，包含优先级信息
+        priority_short = 'P' + str(PRIORITY_ORDER.get(priority, 3))
         tasks_by_assignee[assignee].append({
             'name': name,
             'type': task_type,
             'due_date': due_date,
             'priority': priority,
+            'priority_short': priority_short,
             'days_diff': (datetime.strptime(due_date, '%Y-%m-%d').date() - datetime.now().date()).days if due_date != '未设置' else None
         })
     
     for assignee, tasks in tasks_by_assignee.items():
         # 统计信息
-        urgent_count = sum(1 for t in tasks if 'P0' in t['priority'] or 'P2' in t['priority'])
-        important_count = sum(1 for t in tasks if 'P0' in t['priority'] or 'P1' in t['priority'])
+        p0_count = sum(1 for t in tasks if 'P0' in t['priority'])
+        p1_count = sum(1 for t in tasks if 'P1' in t['priority'])
         overdue_count = sum(1 for t in tasks if t['days_diff'] is not None and t['days_diff'] < 0)
         
         message = [
@@ -156,15 +158,16 @@ def format_message(tasks_data):
         # 添加任务列表
         for i, task in enumerate(tasks, 1):
             message.append(
-                f"{i}. {task['name']} | {task['type']} | {task['due_date']}"
+                f"{i}. {task['name']} | {task['type']} | {task['priority_short']} | {task['due_date']}"
             )
         
         # 添加统计信息
-        message.append(f"\n📊 统计: 紧急{urgent_count} | 重要{important_count} | 逾期{overdue_count}")
+        message.append(f"\n📊 统计: P0 {p0_count} | P1 {p1_count} | 逾期{overdue_count}")
         
         messages.append("\n".join(message))
     
-    return "\n\n".join(messages)
+    # 为钉钉消息添加分隔线
+    return "\n\n---\n\n".join(messages) if len(messages) > 1 else messages[0]
 
 def format_evening_message(tasks_data):
     """格式化晚上的完成任务消息"""
@@ -264,12 +267,12 @@ def send_to_dingtalk(message):
         print(f"时间戳: {timestamp}")
         print(f"目标URL: {url}")
         
-        # 构建消息内容
+        # 构建消息内容，确保分隔线正确显示
         data = {
             "msgtype": "markdown",
             "markdown": {
                 "title": "任务提醒",
-                "text": message
+                "text": message.replace("---", "---\n")  # 确保分隔线正确显示
             }
         }
         
