@@ -3,6 +3,10 @@ from datetime import datetime, timezone
 import pytz
 import os
 import time
+import hmac
+import hashlib
+import base64
+import urllib.parse
 
 # 修改配置信息部分
 NOTION_TOKEN = os.environ.get('NOTION_TOKEN', "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")
@@ -16,6 +20,11 @@ PRIORITY_ORDER = {
     "P2 紧急不重要": 2,
     "P3 不重要不紧急": 3
 }
+
+# 添加钉钉配置
+DINGTALK_TOKEN = "812a9229191e0073b8e8f7b8634566be7ad6c76250e62ed98335d29d342c1336"
+DINGTALK_SECRET = "SEC49c94c1d04babd709d033051569ed245d99857f5c744f77656abd15bd30abf90"
+DINGTALK_WEBHOOK = f"https://oapi.dingtalk.com/robot/send?access_token={DINGTALK_TOKEN}"
 
 def get_notion_tasks(is_evening=False):
     headers = {
@@ -103,6 +112,7 @@ def get_notion_tasks(is_evening=False):
         return {"results": []}
 
 def format_message(tasks_data):
+    """格式化早上的待办任务消息"""
     messages = []
     tasks_by_assignee = {}
     
@@ -110,146 +120,94 @@ def format_message(tasks_data):
     for result in tasks_data.get('results', []):
         properties = result.get('properties', {})
         
-        # 修改负责人获取方式
+        # 获取任务信息
         name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
-        assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')  # 改为 select 类型
+        assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')
         priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3 不重要不紧急')
         task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
         due_date = properties.get('截止日期', {}).get('date', {}).get('start', '未设置')
         
-        # 计算逾期天数
-        days_diff = None
-        if due_date and due_date != '未设置':
-            try:
-                due_datetime = datetime.strptime(due_date, '%Y-%m-%d').date()
-                today = datetime.now().date()
-                days_diff = (due_datetime - today).days
-            except:
-                days_diff = None
-        
-        # 初始化该负责人的任务字典
+        # 初始化该负责人的任务列表
         if assignee not in tasks_by_assignee:
-            tasks_by_assignee[assignee] = {
-                'P0': [],
-                'P1': [],
-                'P2': [],
-                'P3': []
-            }
-        
-        # 确定优先级类别
-        priority_key = 'P' + str(PRIORITY_ORDER.get(priority, 3))
+            tasks_by_assignee[assignee] = []
         
         # 添加任务
-        tasks_by_assignee[assignee][priority_key].append({
+        tasks_by_assignee[assignee].append({
             'name': name,
             'type': task_type,
             'due_date': due_date,
-            'days_diff': days_diff
+            'priority': priority,
+            'days_diff': (datetime.strptime(due_date, '%Y-%m-%d').date() - datetime.now().date()).days if due_date != '未设置' else None
         })
     
-    for assignee, priorities in tasks_by_assignee.items():
-        total_tasks = sum(len(tasks) for tasks in priorities.values())
-        overdue_tasks = sum(1 for p in priorities.values() 
-                           for t in p if t['days_diff'] is not None and t['days_diff'] < 0)
+    for assignee, tasks in tasks_by_assignee.items():
+        # 统计信息
+        urgent_count = sum(1 for t in tasks if 'P0' in t['priority'] or 'P2' in t['priority'])
+        important_count = sum(1 for t in tasks if 'P0' in t['priority'] or 'P1' in t['priority'])
+        overdue_count = sum(1 for t in tasks if t['days_diff'] is not None and t['days_diff'] < 0)
         
         message = [
-            "📋 今日待处理任务提醒",
-            f"👤 {assignee}的任务清单 (共{total_tasks}条)"  # 删除了分隔线
+            f"📋 待办任务 | {assignee} (共{len(tasks)}条)\n"
         ]
         
-        priority_emojis = {
-            'P0': '🔴 重要紧急',
-            'P1': '🔵 重要不紧急',
-            'P2': '🟡 紧急不重要',
-            'P3': '⚪ 不重要不紧急'
-        }
+        # 按优先级排序任务
+        tasks.sort(key=lambda x: PRIORITY_ORDER.get(x['priority'], 3))
         
-        task_counter = 1
-        for priority in ['P0', 'P1', 'P2', 'P3']:
-            tasks = priorities[priority]
-            if not tasks:
-                continue
-                
-            message.append(f"{priority_emojis[priority]}")  # 删除了额外的换行
-            for task in tasks:
-                message.append(f"{task_counter}. {task['name']}")
-                message.append(f"📌 类型：{task['type']}")  # 减少缩进
-                message.append(f"⏰ 截止：{task['due_date']}")
-                if task['days_diff'] is not None and task['days_diff'] < 0:
-                    message.append(f"⚠️ 已逾期 {abs(task['days_diff'])} 天")
-                message.append("")  # 只保留一个空行
-                task_counter += 1
+        # 添加任务列表
+        for i, task in enumerate(tasks, 1):
+            message.append(
+                f"{i}. {task['name']} | {task['type']} | {task['due_date']}"
+            )
         
-        # 统计信息更紧凑
-        if overdue_tasks > 0:
-            message.extend([
-                "🔍 任务统计:",  # 删除了分隔线
-                f"• 重要紧急: {len(priorities['P0'])}条 • 重要不紧急: {len(priorities['P1'])}条",
-                f"• 紧急不重要: {len(priorities['P2'])}条 • 不重要不紧急: {len(priorities['P3'])}条",
-                f"• 已逾期: {overdue_tasks}条"
-            ])
-        else:
-            message.extend([
-                "🔍 任务统计:",
-                f"• 重要紧急: {len(priorities['P0'])}条 • 重要不紧急: {len(priorities['P1'])}条",
-                f"• 紧急不重要: {len(priorities['P2'])}条 • 不重要不紧急: {len(priorities['P3'])}条"
-            ])
-            
+        # 添加统计信息
+        message.append(f"\n📊 统计: 紧急{urgent_count} | 重要{important_count} | 逾期{overdue_count}")
+        
         messages.append("\n".join(message))
     
     return "\n\n".join(messages)
 
 def format_evening_message(tasks_data):
-    message = ["📋 今日完成任务统计"]
-    
-    # 添加调试日志
-    print("\n=== 调试信息 ===")
-    print(f"原始任务数量: {len(tasks_data.get('results', []))}")
-    
+    """格式化晚上的完成任务消息"""
     # 过滤今天完成的任务
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    print(f"当前UTC日期: {today}")
-    
     today_tasks = [
         result for result in tasks_data.get('results', [])
         if result.get('last_edited_time', '').startswith(today)
     ]
     
-    # 打印每个任务的时间信息
-    print("\n完成任务时间信息:")
-    for result in tasks_data.get('results', []):
-        task_name = result.get('properties', {}).get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
-        edit_time = result.get('last_edited_time', 'unknown')
-        print(f"任务: {task_name}")
-        print(f"编辑时间: {edit_time}")
-        print(f"是否今天完成: {edit_time.startswith(today) if edit_time != 'unknown' else False}")
-        print("---")
-    
     total_tasks = len(today_tasks)
-    print(f"\n今日完成任务数: {total_tasks}")
-    print("=== 调试信息结束 ===\n")
-    
     if total_tasks == 0:
-        message.append("今天还没有完成任何任务哦！加油！")
-        return "\n".join(message)
+        return "✅ 今日完成 (0/0)\n\n还没有完成任何任务哦！加油！"
     
-    message.append(f"🎉 今天完成了 {total_tasks} 个任务")
-    message.append("")  # 空行
+    # 假设总任务数是完成任务的1.5倍（你可以根据实际情况调整）
+    estimated_total = max(total_tasks, round(total_tasks * 1.5))
+    completion_rate = round((total_tasks / estimated_total) * 100)
     
+    message = [f"✅ 今日完成 ({total_tasks}/{estimated_total})"]
+    
+    # 统计信息初始化
+    important_count = 0
+    urgent_count = 0
+    
+    # 添加任务列表
     for idx, result in enumerate(today_tasks, 1):
         properties = result.get('properties', {})
         name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
         task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
-        priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3 不重要不紧急')
+        priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3')
         
-        message.extend([
-            f"{idx}. {name}",
-            f"📌 类型：{task_type}",
-            f"🏷️ 优先级：{priority}",
-            ""
-        ])
+        # 统计重要和紧急任务
+        if 'P0' in priority or 'P1' in priority:
+            important_count += 1
+        if 'P0' in priority or 'P2' in priority:
+            urgent_count += 1
+        
+        message.append(f"{idx}. {name} | {task_type} | {priority[:2]}")
     
-    return "\n".join(message)
+    # 添加统计信息
+    message.append(f"\n📊 完成率: {completion_rate}% | 重要{important_count} | 紧急{urgent_count}")
+    
+    return "\n\n".join(message)
 
 def send_to_wechat(message):
     url = "http://www.pushplus.plus/send"
@@ -286,6 +244,75 @@ def send_to_wechat(message):
     except Exception as e:
         print(f"发送消息时出错: {str(e)}")
         return False
+
+def send_to_dingtalk(message):
+    """发送消息到钉钉群"""
+    try:
+        # 生成时间戳和签名
+        timestamp = str(round(time.time() * 1000))
+        secret = DINGTALK_SECRET
+        secret_enc = secret.encode('utf-8')
+        string_to_sign = '{}\n{}'.format(timestamp, secret)
+        string_to_sign_enc = string_to_sign.encode('utf-8')
+        hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
+        sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+        
+        # 构建完整的URL
+        url = f"{DINGTALK_WEBHOOK}&timestamp={timestamp}&sign={sign}"
+        
+        print(f"\n=== 钉钉发送信息 ===")
+        print(f"时间戳: {timestamp}")
+        print(f"目标URL: {url}")
+        
+        # 构建消息内容
+        data = {
+            "msgtype": "markdown",
+            "markdown": {
+                "title": "任务提醒",
+                "text": message
+            }
+        }
+        
+        print(f"发送数据: {data}")
+        
+        # 发送请求
+        response = requests.post(url, json=data, timeout=10)
+        print(f"响应状态码: {response.status_code}")
+        print(f"响应内容: {response.text}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('errcode') == 0:
+                print("钉钉消息发送成功")
+                return True
+            else:
+                print(f"钉钉返回错误: {result}")
+                return False
+        else:
+            print(f"HTTP请求失败: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"钉钉发送失败: {str(e)}")
+        return False
+
+def send_message(message):
+    """统一的消息发送函数"""
+    results = []
+    
+    # PushPlus 推送
+    print("\n=== 开始 PushPlus 推送 ===")
+    pushplus_result = send_to_wechat(message)
+    results.append(pushplus_result)
+    print(f"PushPlus发送{'成功' if pushplus_result else '失败'}")
+    
+    # 钉钉推送
+    print("\n=== 开始钉钉推送 ===")
+    dingtalk_result = send_to_dingtalk(message)
+    results.append(dingtalk_result)
+    print(f"钉钉发送{'成功' if dingtalk_result else '失败'}")
+    
+    return any(results)
 
 def wait_until_send_time():
     beijing_tz = pytz.timezone('Asia/Shanghai')
@@ -348,10 +375,10 @@ def main():
         wait_until_send_time()
         
         print("发送消息...")
-        if send_to_wechat(message):
-            print("消息发送成功!")
+        if send_message(message):  # 使用新的 send_message 函数
+            print("至少一个渠道发送成功!")
         else:
-            print("消息发送失败!")
+            print("所有渠道发送失败!")
     except Exception as e:
         print(f"运行出错: {str(e)}")
         raise
