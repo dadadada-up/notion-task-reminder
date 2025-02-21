@@ -13,6 +13,10 @@ NOTION_TOKEN = os.environ.get('NOTION_TOKEN', "ntn_6369834877882AeAuRrPPKbzflVe8
 DATABASE_ID = os.environ.get('DATABASE_ID', "192ed4b7aaea81859bbbf3ad4ea54b56")
 PUSHPLUS_TOKEN = os.environ.get('PUSHPLUS_TOKEN', "3cfcadc8fcf744769292f0170e724ddb")
 
+# 在配置部分添加 WxPusher 配置
+WXPUSHER_TOKEN = "AT_wO2h16sJxNbV0pR3wOvssCi5eGKomrhH"
+WXPUSHER_UID = "UID_Kp0Ftm3F0GmnGmdYnmKY3yBet7u4"
+
 # 四象限优先级
 PRIORITY_ORDER = {
     "P0 重要紧急": 0,
@@ -299,6 +303,42 @@ def send_to_dingtalk(message):
         print(f"钉钉发送失败: {str(e)}")
         return False
 
+def send_to_wxpusher(message):
+    """发送消息到 WxPusher"""
+    url = "http://wxpusher.zjiecode.com/api/send/message"
+    data = {
+        "appToken": WXPUSHER_TOKEN,
+        "content": message,
+        "contentType": 1,  # 1表示文本
+        "uids": [WXPUSHER_UID],
+        "summary": "任务提醒"  # 消息摘要
+    }
+    
+    try:
+        print(f"\n=== WxPusher 发送信息 ===")
+        print(f"请求URL: {url}")
+        print(f"发送数据: {data}")
+        
+        response = requests.post(url, json=data, timeout=10)
+        print(f"响应状态码: {response.status_code}")
+        print(f"响应内容: {response.text}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                print("WxPusher消息发送成功")
+                return True
+            else:
+                print(f"WxPusher返回错误: {result}")
+                return False
+        else:
+            print(f"HTTP请求失败: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"WxPusher发送失败: {str(e)}")
+        return False
+
 def send_message(message):
     """统一的消息发送函数"""
     results = []
@@ -314,6 +354,12 @@ def send_message(message):
     dingtalk_result = send_to_dingtalk(message)
     results.append(dingtalk_result)
     print(f"钉钉发送{'成功' if dingtalk_result else '失败'}")
+    
+    # WxPusher 推送
+    print("\n=== 开始 WxPusher 推送 ===")
+    wxpusher_result = send_to_wxpusher(message)
+    results.append(wxpusher_result)
+    print(f"WxPusher发送{'成功' if wxpusher_result else '失败'}")
     
     return any(results)
 
