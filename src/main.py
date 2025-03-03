@@ -256,37 +256,64 @@ def format_evening_message(tasks_data):
     return "\n\n".join(message)
 
 def send_to_wechat(message):
+    """发送消息到微信（通过 PushPlus）"""
     url = "http://www.pushplus.plus/send"
+    
+    # 检查 token 是否为空
+    if not PUSHPLUS_TOKEN or PUSHPLUS_TOKEN.strip() == "":
+        print("错误: PUSHPLUS_TOKEN 未设置或为空")
+        return False
+        
     data = {
         "token": PUSHPLUS_TOKEN,
-        "title": "任务提醒",  # 简化标题
+        "title": "任务提醒",
         "content": message,
         "template": "txt",
-        "channel": "wechat"  # 明确指定渠道
+        "channel": "wechat"
     }
     
     try:
-        print(f"正在发送消息到PushPlus...")
-        print(f"请求URL: {url}")
-        print(f"请求数据: {data}")
+        print("\n=== PushPlus 发送信息 ===")
+        print(f"发送地址: {url}")
+        print(f"Token长度: {len(PUSHPLUS_TOKEN)}")
+        print(f"消息长度: {len(message)}")
         
-        response = requests.post(url, json=data, timeout=10)
+        # 设置超时和重试
+        session = requests.Session()
+        retries = requests.adapters.Retry(total=3, backoff_factor=1)
+        session.mount('http://', requests.adapters.HTTPAdapter(max_retries=retries))
+        session.mount('https://', requests.adapters.HTTPAdapter(max_retries=retries))
+        
+        response = session.post(url, json=data, timeout=30)
         print(f"响应状态码: {response.status_code}")
         print(f"响应头: {dict(response.headers)}")
-        print(f"响应内容: {response.text}")
         
-        if response.status_code == 200:
+        try:
             result = response.json()
-            if result.get('code') == 200:
-                print("消息发送成功")
-                return True
+            print(f"响应内容: {result}")
+            
+            if response.status_code == 200:
+                if result.get('code') == 200:
+                    print("消息发送成功")
+                    return True
+                else:
+                    print(f"PushPlus返回错误: code={result.get('code')}, msg={result.get('msg')}")
+                    return False
             else:
-                print(f"PushPlus返回错误: {result}")
+                print(f"HTTP请求失败: {response.status_code}")
                 return False
-        else:
-            print(f"HTTP请求失败: {response.status_code}")
+                
+        except ValueError as e:
+            print(f"解析响应JSON失败: {str(e)}")
+            print(f"原始响应内容: {response.text}")
             return False
             
+    except requests.exceptions.Timeout:
+        print("请求超时")
+        return False
+    except requests.exceptions.ConnectionError:
+        print("连接错误")
+        return False
     except Exception as e:
         print(f"发送消息时出错: {str(e)}")
         return False
