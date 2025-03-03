@@ -140,120 +140,242 @@ def format_message(tasks_data):
     messages = []
     tasks_by_assignee = {}
     
+    print(f"开始处理 {len(tasks_data.get('results', []))} 个任务...")
+    
     # 初始化数据结构
     for result in tasks_data.get('results', []):
-        properties = result.get('properties', {})
-        
-        # 获取任务基本信息
-        name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
-        assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')
-        
-        # 获取关联信息
-        parent_project = properties.get('上级项目', {}).get('relation', [])
-        sub_tasks = properties.get('子级项目', {}).get('relation', [])
-        blocking_tasks = properties.get('正在阻止', {}).get('relation', [])
-        blocked_by_tasks = properties.get('被阻止', {}).get('relation', [])
-        
-        # 初始化该负责人的任务列表
-        if assignee not in tasks_by_assignee:
-            tasks_by_assignee[assignee] = []
-        
-        # 添加任务信息
-        tasks_by_assignee[assignee].append({
-            'name': name,
-            'parent_project': parent_project,
-            'sub_tasks': sub_tasks,
-            'blocking_tasks': blocking_tasks,
-            'blocked_by_tasks': blocked_by_tasks
-        })
+        try:
+            properties = result.get('properties', {})
+            if not properties:
+                print("警告: 任务没有properties属性")
+                continue
+                
+            # 获取任务基本信息，增加错误处理
+            name = '未命名任务'
+            try:
+                title = properties.get('任务名称', {}).get('title', [])
+                if title and isinstance(title[0], dict):
+                    name = title[0].get('plain_text', '未命名任务')
+            except (IndexError, AttributeError) as e:
+                print(f"获取任务名称时出错: {str(e)}")
+                
+            assignee = '未分配'
+            try:
+                assignee_data = properties.get('负责人', {}).get('select', {})
+                if isinstance(assignee_data, dict):
+                    assignee = assignee_data.get('name', '未分配')
+            except AttributeError as e:
+                print(f"获取负责人时出错: {str(e)}")
+            
+            # 初始化该负责人的任务列表
+            if assignee not in tasks_by_assignee:
+                tasks_by_assignee[assignee] = []
+            
+            # 安全地获取关联信息
+            task_info = {
+                'name': name,
+                'parent_project': [],
+                'sub_tasks': [],
+                'blocking_tasks': [],
+                'blocked_by_tasks': []
+            }
+            
+            # 获取上级项目
+            try:
+                parent_data = properties.get('上级项目', {}).get('relation', [])
+                if isinstance(parent_data, list):
+                    task_info['parent_project'] = parent_data
+            except AttributeError as e:
+                print(f"获取上级项目时出错: {str(e)}")
+            
+            # 获取子任务
+            try:
+                sub_data = properties.get('子级项目', {}).get('relation', [])
+                if isinstance(sub_data, list):
+                    task_info['sub_tasks'] = sub_data
+            except AttributeError as e:
+                print(f"获取子任务时出错: {str(e)}")
+            
+            # 获取阻止关系
+            try:
+                blocking_data = properties.get('正在阻止', {}).get('relation', [])
+                if isinstance(blocking_data, list):
+                    task_info['blocking_tasks'] = blocking_data
+                    
+                blocked_data = properties.get('被阻止', {}).get('relation', [])
+                if isinstance(blocked_data, list):
+                    task_info['blocked_by_tasks'] = blocked_data
+            except AttributeError as e:
+                print(f"获取阻止关系时出错: {str(e)}")
+            
+            # 添加任务信息
+            tasks_by_assignee[assignee].append(task_info)
+            
+        except Exception as e:
+            print(f"处理任务时出错: {str(e)}")
+            continue
     
+    # 如果没有有效的任务数据
+    if not tasks_by_assignee:
+        return "没有找到待处理的任务。"
+    
+    print("开始生成消息...")
+    
+    # 生成消息
     for assignee, tasks in tasks_by_assignee.items():
-        message = [
-            f"📋 待办任务 | {assignee} (共{len(tasks)}条)\n"
-        ]
-        
-        # 添加任务列表
-        for i, task in enumerate(tasks, 1):
-            task_message = [f"{i}. {task['name']}"]
+        try:
+            message = [
+                f"📋 待办任务 | {assignee} (共{len(tasks)}条)\n"
+            ]
             
-            # 添加上级项目（如果有）
-            if task['parent_project']:
-                parent_names = [p.get('title', [{}])[0].get('plain_text', '') for p in task['parent_project']]
-                if parent_names:
-                    task_message.append(f"   🔗 上级项目: {', '.join(parent_names)}")
+            for i, task in enumerate(tasks, 1):
+                task_message = [f"{i}. {task['name']}"]
+                
+                # 添加上级项目信息
+                if task['parent_project']:
+                    try:
+                        parent_names = []
+                        for p in task['parent_project']:
+                            if isinstance(p, dict) and 'id' in p:
+                                parent_names.append(p.get('title', [{}])[0].get('plain_text', '未知项目'))
+                        if parent_names:
+                            task_message.append(f"   🔗 上级项目: {', '.join(filter(None, parent_names))}")
+                    except (IndexError, AttributeError) as e:
+                        print(f"处理上级项目显示时出错: {str(e)}")
+                
+                # 添加子任务信息
+                if task['sub_tasks']:
+                    try:
+                        sub_task_lines = []
+                        for sub in task['sub_tasks']:
+                            if isinstance(sub, dict) and 'id' in sub:
+                                sub_name = sub.get('title', [{}])[0].get('plain_text', '未知子任务')
+                                sub_status = sub.get('status', '未知')
+                                sub_task_lines.append(f"      - {sub_name} [{sub_status}]")
+                        if sub_task_lines:
+                            task_message.append("   👶 子任务:")
+                            task_message.extend(sub_task_lines)
+                    except (IndexError, AttributeError) as e:
+                        print(f"处理子任务显示时出错: {str(e)}")
+                
+                # 添加阻止关系信息
+                if task['blocked_by_tasks']:
+                    try:
+                        blocked_names = []
+                        for b in task['blocked_by_tasks']:
+                            if isinstance(b, dict) and 'id' in b:
+                                blocked_names.append(b.get('title', [{}])[0].get('plain_text', '未知任务'))
+                        if blocked_names:
+                            task_message.append(f"   ⛔️ 被阻止: {', '.join(filter(None, blocked_names))}")
+                    except (IndexError, AttributeError) as e:
+                        print(f"处理被阻止任务显示时出错: {str(e)}")
+                
+                if task['blocking_tasks']:
+                    try:
+                        blocking_names = []
+                        for b in task['blocking_tasks']:
+                            if isinstance(b, dict) and 'id' in b:
+                                blocking_names.append(b.get('title', [{}])[0].get('plain_text', '未知任务'))
+                        if blocking_names:
+                            task_message.append(f"   🚫 正在阻止: {', '.join(filter(None, blocking_names))}")
+                    except (IndexError, AttributeError) as e:
+                        print(f"处理正在阻止任务显示时出错: {str(e)}")
+                
+                message.append('\n'.join(task_message))
             
-            # 添加子任务（如果有）
-            if task['sub_tasks']:
-                sub_task_lines = []
-                for sub in task['sub_tasks']:
-                    sub_name = sub.get('title', [{}])[0].get('plain_text', '')
-                    sub_status = sub.get('status', '未知')  # 使用新的状态信息
-                    sub_task_lines.append(f"      - {sub_name} [{sub_status}]")
-                if sub_task_lines:
-                    task_message.append("   👶 子任务:")
-                    task_message.extend(sub_task_lines)
+            messages.append('\n'.join(message))
             
-            # 添加被阻止任务（如果有）
-            if task['blocked_by_tasks']:
-                blocked_names = [b.get('title', [{}])[0].get('plain_text', '') for b in task['blocked_by_tasks']]
-                if blocked_names:
-                    task_message.append(f"   ⛔️ 被阻止: {', '.join(blocked_names)}")
-            
-            # 添加正在阻止的任务（如果有）
-            if task['blocking_tasks']:
-                blocking_names = [b.get('title', [{}])[0].get('plain_text', '') for b in task['blocking_tasks']]
-                if blocking_names:
-                    task_message.append(f"   🚫 正在阻止: {', '.join(blocking_names)}")
-            
-            message.append('\n'.join(task_message))
-        
-        messages.append('\n'.join(message))
+        except Exception as e:
+            print(f"生成{assignee}的消息时出错: {str(e)}")
+            continue
     
-    # 为多个负责人的消息添加分隔线
-    return "\n\n---\n\n".join(messages) if len(messages) > 1 else messages[0]
+    print("消息生成完成")
+    return "\n\n---\n\n".join(messages) if len(messages) > 1 else (messages[0] if messages else "消息生成过程出错，请检查日志")
 
 def format_evening_message(tasks_data):
     """格式化晚上的完成任务消息"""
-    # 过滤今天完成的任务
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_tasks = [
-        result for result in tasks_data.get('results', [])
-        if result.get('last_edited_time', '').startswith(today)
-    ]
-    
-    total_tasks = len(today_tasks)
-    if total_tasks == 0:
-        return "✅ 今日完成 (0/0)\n\n还没有完成任何任务哦！加油！"
-    
-    # 假设总任务数是完成任务的1.5倍（你可以根据实际情况调整）
-    estimated_total = max(total_tasks, round(total_tasks * 1.5))
-    completion_rate = round((total_tasks / estimated_total) * 100)
-    
-    message = [f"✅ 今日完成 ({total_tasks}/{estimated_total})"]
-    
-    # 统计信息初始化
-    important_count = 0
-    urgent_count = 0
-    
-    # 添加任务列表
-    for idx, result in enumerate(today_tasks, 1):
-        properties = result.get('properties', {})
-        name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
-        task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
-        priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3')
+    try:
+        # 过滤今天完成的任务
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today_tasks = []
         
-        # 统计重要和紧急任务
-        if 'P0' in priority or 'P1' in priority:
-            important_count += 1
-        if 'P0' in priority or 'P2' in priority:
-            urgent_count += 1
+        print(f"处理已完成任务，检查日期: {today}")
         
-        message.append(f"{idx}. {name} | {task_type} | {priority[:2]}")
-    
-    # 添加统计信息
-    message.append(f"\n📊 完成率: {completion_rate}% | 重要{important_count} | 紧急{urgent_count}")
-    
-    return "\n\n".join(message)
+        for result in tasks_data.get('results', []):
+            try:
+                if result.get('last_edited_time', '').startswith(today):
+                    today_tasks.append(result)
+            except AttributeError as e:
+                print(f"检查任务日期时出错: {str(e)}")
+                continue
+        
+        total_tasks = len(today_tasks)
+        if total_tasks == 0:
+            return "✅ 今日完成 (0/0)\n\n还没有完成任何任务哦！加油！"
+        
+        # 假设总任务数是完成任务的1.5倍
+        estimated_total = max(total_tasks, round(total_tasks * 1.5))
+        completion_rate = round((total_tasks / estimated_total) * 100)
+        
+        message = [f"✅ 今日完成 ({total_tasks}/{estimated_total})"]
+        
+        # 统计信息初始化
+        important_count = 0
+        urgent_count = 0
+        
+        # 添加任务列表
+        for idx, result in enumerate(today_tasks, 1):
+            try:
+                properties = result.get('properties', {})
+                if not properties:
+                    print(f"警告: 第{idx}个任务没有properties属性")
+                    continue
+                
+                # 获取任务信息
+                name = '未命名任务'
+                try:
+                    title = properties.get('任务名称', {}).get('title', [])
+                    if title and isinstance(title[0], dict):
+                        name = title[0].get('plain_text', '未命名任务')
+                except (IndexError, AttributeError) as e:
+                    print(f"获取任务名称时出错: {str(e)}")
+                
+                task_type = '未分类'
+                try:
+                    type_data = properties.get('任务类型', {}).get('select', {})
+                    if isinstance(type_data, dict):
+                        task_type = type_data.get('name', '未分类')
+                except AttributeError as e:
+                    print(f"获取任务类型时出错: {str(e)}")
+                
+                priority = 'P3'
+                try:
+                    priority_data = properties.get('四象限', {}).get('select', {})
+                    if isinstance(priority_data, dict):
+                        priority = priority_data.get('name', 'P3')
+                except AttributeError as e:
+                    print(f"获取优先级时出错: {str(e)}")
+                
+                # 统计重要和紧急任务
+                if 'P0' in priority or 'P1' in priority:
+                    important_count += 1
+                if 'P0' in priority or 'P2' in priority:
+                    urgent_count += 1
+                
+                message.append(f"{idx}. {name} | {task_type} | {priority[:2]}")
+                
+            except Exception as e:
+                print(f"处理第{idx}个任务时出错: {str(e)}")
+                continue
+        
+        # 添加统计信息
+        message.append(f"\n📊 完成率: {completion_rate}% | 重要{important_count} | 紧急{urgent_count}")
+        
+        return "\n\n".join(message)
+        
+    except Exception as e:
+        print(f"格式化晚间消息时出错: {str(e)}")
+        return "生成晚间总结时出错，请检查日志"
 
 def send_to_wechat(message):
     """发送消息到微信（通过 PushPlus）"""
@@ -476,29 +598,35 @@ def main():
         # 提前获取和处理数据
         is_evening = os.environ.get('REMINDER_TYPE') == 'evening'
         print(f"开始获取{'已完成' if is_evening else '待处理'}任务...")
-        tasks = get_notion_tasks(is_evening)
         
-        if not tasks.get('results'):
-            print("没有获取到任何任务")
-            return
+        message = None
+        try:
+            tasks = get_notion_tasks(is_evening)
             
-        print(f"获取到 {len(tasks.get('results', []))} 个任务")
+            if tasks.get('results'):
+                print(f"获取到 {len(tasks.get('results', []))} 个任务")
+                message = format_evening_message(tasks) if is_evening else format_message(tasks)
+            else:
+                print("没有获取到任何任务")
+                message = "今日没有已完成的任务。" if is_evening else "今日没有待办任务。"
+        except Exception as e:
+            print(f"获取或格式化任务时出错: {str(e)}")
+            message = "获取任务信息时出错，请检查 Notion API 配置。"
         
-        print("格式化消息...")
-        message = format_evening_message(tasks) if is_evening else format_message(tasks)
-        
-        if not message.strip():
-            print("没有需要提醒的任务")
-            return
+        if not message or not message.strip():
+            message = "生成任务消息时出错，请检查日志。"
         
         # 等待到指定时间
         wait_until_send_time()
         
         print("发送消息...")
-        if send_message(message):  # 使用新的 send_message 函数
+        if send_message(message):
             print("至少一个渠道发送成功!")
+            return  # 成功发送则返回 0
         else:
             print("所有渠道发送失败!")
+            raise Exception("消息发送失败")  # 抛出异常导致返回 1
+            
     except Exception as e:
         print(f"运行出错: {str(e)}")
         raise
