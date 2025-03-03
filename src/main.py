@@ -295,11 +295,33 @@ def format_message(tasks_data):
                     )
                 )
                 
-                # 添加子任务标题
-                message.append("   子任务:")
+                # 添加子任务标题和第一个子任务
+                first_child = sorted_children[0]
+                child_line = [f"   └─ {first_child['name']} | {first_child['status']}"]
                 
-                for child in sorted_children:
-                    # 添加子任务
+                # 如果第一个子任务有优先级和任务类型，添加到任务信息中
+                if first_child['priority'] != 'P3' or first_child['task_type'] != '未分类':
+                    extra_info = []
+                    if first_child['priority'] != 'P3':
+                        extra_info.append(first_child['priority'][:2])
+                    if first_child['task_type'] != '未分类':
+                        extra_info.append(first_child['task_type'])
+                    if extra_info:
+                        child_line.append(f" ({' | '.join(extra_info)})")
+                
+                message.append(''.join(child_line))
+                
+                # 添加第一个子任务的阻止关系
+                if first_child.get('blocked_by'):
+                    blocked_names = []
+                    for b in first_child['blocked_by']:
+                        blocked_name = b.get('title', [{}])[0].get('plain_text', '未知任务')
+                        blocked_names.append(blocked_name)
+                    if blocked_names:
+                        message.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
+                
+                # 添加剩余的子任务
+                for child in sorted_children[1:]:
                     child_line = [f"   └─ {child['name']} | {child['status']}"]
                     
                     # 如果子任务有优先级和任务类型，添加到任务信息中
@@ -322,11 +344,8 @@ def format_message(tasks_data):
                             blocked_names.append(blocked_name)
                         if blocked_names:
                             message.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
-                    
-                    # 每个子任务后添加空行
-                    message.append('')
             
-            # 在每个主任务后添加空行，增加可读性
+            # 在每个主任务后添加空行
             message.append('')
         
         messages.append('\n'.join(message).rstrip())  # 移除最后的空行
