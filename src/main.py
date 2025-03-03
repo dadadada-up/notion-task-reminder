@@ -659,8 +659,8 @@ def wait_until_send_time():
     target_datetime = datetime.combine(now.date(), target_time)
     target_datetime = beijing_tz.localize(target_datetime)
     
+    # 如果当前时间已经过了目标时间，说明是测试运行，立即发送
     if now.time() > target_time:
-        # 如果当前时间已经过了目标时间，说明是测试运行，立即发送
         return
     
     wait_seconds = (target_datetime - now).total_seconds()
@@ -693,19 +693,14 @@ def main():
         is_evening = os.environ.get('REMINDER_TYPE') == 'evening'
         print(f"开始获取{'已完成' if is_evening else '待处理'}任务...")
         
-        message = None
-        try:
-            tasks = get_notion_tasks(is_evening)
-            
-            if tasks.get('results'):
-                print(f"获取到 {len(tasks.get('results', []))} 个任务")
-                message = format_evening_message(tasks) if is_evening else format_message(tasks)
-            else:
-                print("没有获取到任何任务")
-                message = "今日没有已完成的任务。" if is_evening else "今日没有待办任务。"
-        except Exception as e:
-            print(f"获取或格式化任务时出错: {str(e)}")
-            message = "获取任务信息时出错，请检查 Notion API 配置。"
+        # 先获取数据
+        tasks = get_notion_tasks(is_evening)
+        if tasks.get('results'):
+            print(f"获取到 {len(tasks.get('results', []))} 个任务")
+            message = format_evening_message(tasks) if is_evening else format_message(tasks)
+        else:
+            print("没有获取到任何任务")
+            message = "今日没有已完成的任务。" if is_evening else "今日没有待办任务。"
         
         if not message or not message.strip():
             message = "生成任务消息时出错，请检查日志。"
@@ -713,13 +708,14 @@ def main():
         # 等待到指定时间
         wait_until_send_time()
         
+        # 发送消息
         print("发送消息...")
         if send_message(message):
             print("至少一个渠道发送成功!")
-            return  # 成功发送则返回 0
+            return
         else:
             print("所有渠道发送失败!")
-            raise Exception("消息发送失败")  # 抛出异常导致返回 1
+            raise Exception("消息发送失败")
             
     except Exception as e:
         print(f"运行出错: {str(e)}")

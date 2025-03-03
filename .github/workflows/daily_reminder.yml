@@ -3,7 +3,7 @@ name: Daily Task Reminder
 on:
   schedule:
     - cron: '0 0 * * *'  # UTC 00:00 = 北京时间 08:00 (早上任务)
-    - cron: '0 14 * * *'  # UTC 14:00 = 北京时间 22:00 (晚上任务)
+    - cron: '0 14 * * *' # UTC 14:00 = 北京时间 22:00 (晚上任务)
   workflow_dispatch:      # 允许手动触发
 
 jobs:
@@ -23,13 +23,25 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
+    - name: Determine reminder type
+      id: reminder-type
+      run: |
+        hour_utc=$(date -u +%H)
+        if [ "$hour_utc" == "00" ]; then
+          echo "type=morning" >> $GITHUB_OUTPUT
+          echo "time=08:00" >> $GITHUB_OUTPUT
+        else
+          echo "type=evening" >> $GITHUB_OUTPUT
+          echo "time=22:00" >> $GITHUB_OUTPUT
+        fi
+    
     - name: Run reminder script
       env:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         DATABASE_ID: ${{ secrets.DATABASE_ID }}
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
-        REMINDER_TYPE: ${{ github.event.schedule == '0 14 * * *' && 'evening' || 'morning' }}
-        SEND_TIME: ${{ github.event.schedule == '0 14 * * *' && '22:00' || '08:00' }}
+        REMINDER_TYPE: ${{ steps.reminder-type.outputs.type }}
+        SEND_TIME: ${{ steps.reminder-type.outputs.time }}
       run: |
         echo "=== 环境变量检查 ==="
         echo "Python 版本:"
@@ -43,5 +55,16 @@ jobs:
         echo "PUSHPLUS_TOKEN 长度: ${#PUSHPLUS_TOKEN}"
         echo "PUSHPLUS_TOKEN 前8位: ${PUSHPLUS_TOKEN:0:8}***"
         echo "=== 开始执行脚本 ==="
-        python -u src/main.py  # 添加 -u 参数禁用输出缓冲
+        python -u src/main.py
         echo "=== 脚本执行完成 ==="
+    
+    - name: Create commit comment
+      if: ${{ steps.reminder-type.outputs.type == 'evening' }}
+      uses: peter-evans/commit-comment@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        body: |
+          🌙 晚间任务提醒已触发
+          
+          执行时间: ${{ steps.reminder-type.outputs.time }}
+          任务类型: ${{ steps.reminder-type.outputs.type }}
