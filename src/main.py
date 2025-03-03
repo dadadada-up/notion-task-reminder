@@ -89,7 +89,7 @@ def get_notion_tasks(is_evening=False):
                     {
                         "property": "开始日期",
                         "date": {
-                            "on_or_after": today
+                            "on_or_before": today
                         }
                     }
                 ]
