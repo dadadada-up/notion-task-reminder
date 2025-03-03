@@ -218,12 +218,12 @@ def format_message(tasks_data):
     messages = []
     tasks_by_assignee = {}
     all_tasks = {}  # 存储所有任务的映射
-    child_to_parent = {}  # 存储子任务到父任务的映射
+    parent_to_children = {}  # 存储父任务到子任务的映射
     
     print(f"\n=== 开始处理任务 ===")
     print(f"总任务数: {len(tasks_data.get('results', []))}")
     
-    # 第一步：收集所有任务信息
+    # 第一步：收集所有任务信息并建立父子关系映射
     for result in tasks_data.get('results', []):
         try:
             task_details = result.get('details', {})
@@ -234,10 +234,10 @@ def format_message(tasks_data):
             task_id = task_details['id']
             all_tasks[task_id] = task_details
             
-            # 建立子任务到父任务的映射
-            for parent in task_details['parent_tasks']:
-                child_to_parent[task_id] = parent['id']
-                print(f"任务 '{task_details['name']}' 是 '{parent['name']}' 的子任务")
+            # 如果这个任务有子任务，添加到父子映射中
+            if task_details['child_tasks']:
+                parent_to_children[task_id] = task_details['child_tasks']
+                print(f"任务 '{task_details['name']}' 有 {len(task_details['child_tasks'])} 个子任务")
             
         except Exception as e:
             print(f"处理任务时出错: {str(e)}")
@@ -247,8 +247,8 @@ def format_message(tasks_data):
     # 第二步：按负责人分组（只处理顶级任务）
     for task_id, task in all_tasks.items():
         try:
-            # 如果任务是某个任务的子任务，跳过
-            if task_id in child_to_parent:
+            # 如果任务是子任务，跳过
+            if task['parent_tasks']:
                 print(f"跳过子任务: {task['name']}")
                 continue
             
@@ -289,19 +289,12 @@ def format_message(tasks_data):
                 if blocked_names:
                     message.append(f"   ⛔️ 被阻止: {', '.join(blocked_names)}")
             
-            if task['blocking']:
-                blocking_names = []
-                for b in task['blocking']:
-                    blocking_name = b.get('title', [{}])[0].get('plain_text', '未知任务')
-                    blocking_names.append(blocking_name)
-                if blocking_names:
-                    message.append(f"   🚫 正在阻止: {', '.join(blocking_names)}")
-            
             # 添加子任务（按状态排序）
             if task['child_tasks']:
                 sorted_children = sorted(task['child_tasks'], 
                                       key=lambda x: status_order.get(x['status'], 999))
                 for child in sorted_children:
+                    # 添加子任务
                     child_line = [f"   └─ {child['name']} | {child['status']}"]
                     
                     # 添加子任务的阻止关系
@@ -312,14 +305,6 @@ def format_message(tasks_data):
                             blocked_names.append(blocked_name)
                         if blocked_names:
                             child_line.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
-                    
-                    if child.get('blocking'):
-                        blocking_names = []
-                        for b in child['blocking']:
-                            blocked_name = b.get('title', [{}])[0].get('plain_text', '未知任务')
-                            blocking_names.append(blocked_name)
-                        if blocking_names:
-                            child_line.append(f"      🚫 正在阻止: {', '.join(blocking_names)}")
                     
                     message.append('\n'.join(child_line))
         
