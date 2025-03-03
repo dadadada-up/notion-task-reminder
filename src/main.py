@@ -344,11 +344,8 @@ def format_message(tasks_data):
                             blocked_names.append(blocked_name)
                         if blocked_names:
                             message.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
-            
-            # 在每个主任务后添加空行
-            message.append('')
         
-        messages.append('\n'.join(message).rstrip())  # 移除最后的空行
+        messages.append('\n'.join(message))  # 不再添加空行
     
     return "\n\n---\n\n".join(messages) if len(messages) > 1 else messages[0]
 
