@@ -31,5 +31,17 @@ jobs:
         REMINDER_TYPE: ${{ github.event.schedule == '0 14 * * *' && 'evening' || 'morning' }}
         SEND_TIME: ${{ github.event.schedule == '0 14 * * *' && '22:00' || '08:00' }}
       run: |
-        echo "PUSHPLUS_TOKEN=${PUSHPLUS_TOKEN:0:8}***"
-        python src/main.py
+        echo "=== 环境变量检查 ==="
+        echo "Python 版本:"
+        python --version
+        echo "当前时间 (UTC):"
+        date
+        echo "当前时间 (北京):"
+        TZ='Asia/Shanghai' date
+        echo "REMINDER_TYPE: $REMINDER_TYPE"
+        echo "SEND_TIME: $SEND_TIME"
+        echo "PUSHPLUS_TOKEN 长度: ${#PUSHPLUS_TOKEN}"
+        echo "PUSHPLUS_TOKEN 前8位: ${PUSHPLUS_TOKEN:0:8}***"
+        echo "=== 开始执行脚本 ==="
+        python -u src/main.py  # 添加 -u 参数禁用输出缓冲
+        echo "=== 脚本执行完成 ==="

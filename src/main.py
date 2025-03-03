@@ -276,7 +276,9 @@ def send_to_wechat(message):
         print("\n=== PushPlus 发送信息 ===")
         print(f"发送地址: {url}")
         print(f"Token长度: {len(PUSHPLUS_TOKEN)}")
+        print(f"Token前8位: {PUSHPLUS_TOKEN[:8]}***")
         print(f"消息长度: {len(message)}")
+        print(f"消息内容预览: {message[:100]}...")
         
         # 设置超时和重试
         session = requests.Session()
@@ -284,6 +286,7 @@ def send_to_wechat(message):
         session.mount('http://', requests.adapters.HTTPAdapter(max_retries=retries))
         session.mount('https://', requests.adapters.HTTPAdapter(max_retries=retries))
         
+        print("\n正在发送请求...")
         response = session.post(url, json=data, timeout=30)
         print(f"响应状态码: {response.status_code}")
         print(f"响应头: {dict(response.headers)}")
@@ -298,6 +301,8 @@ def send_to_wechat(message):
                     return True
                 else:
                     print(f"PushPlus返回错误: code={result.get('code')}, msg={result.get('msg')}")
+                    if result.get('code') == 400:
+                        print("可能是 token 无效，请检查 token 是否正确")
                     return False
             else:
                 print(f"HTTP请求失败: {response.status_code}")
@@ -312,7 +317,7 @@ def send_to_wechat(message):
         print("请求超时")
         return False
     except requests.exceptions.ConnectionError:
-        print("连接错误")
+        print("连接错误，可能是网络问题或 PushPlus 服务不可用")
         return False
     except Exception as e:
         print(f"发送消息时出错: {str(e)}")
