@@ -37,10 +37,15 @@ def get_notion_tasks(is_evening=False):
         "Content-Type": "application/json"
     }
     
-    # 获取今天的开始和结束时间（UTC）
-    today = datetime.now(timezone.utc)
-    today_start = today.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    today_end = today.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+    # 获取北京时间的今天的开始和结束时间
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    beijing_now = datetime.now(beijing_tz)
+    beijing_start = beijing_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    beijing_end = beijing_now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    # 转换为 UTC 时间
+    utc_start = beijing_start.astimezone(timezone.utc)
+    utc_end = beijing_end.astimezone(timezone.utc)
     
     if is_evening:
         # 晚上查询当天已完成的任务
@@ -56,8 +61,8 @@ def get_notion_tasks(is_evening=False):
                     {
                         "property": "上次编辑时间",
                         "last_edited_time": {
-                            "after": today_start,
-                            "before": today_end
+                            "after": utc_start.isoformat(),
+                            "before": utc_end.isoformat()
                         }
                     }
                 ]
@@ -102,7 +107,7 @@ def get_notion_tasks(is_evening=False):
                             {
                                 "property": "开始日期",
                                 "date": {
-                                    "on_or_before": today.strftime("%Y-%m-%d")
+                                    "on_or_before": beijing_now.strftime("%Y-%m-%d")
                                 }
                             }
                         ]
