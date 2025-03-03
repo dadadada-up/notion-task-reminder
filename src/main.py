@@ -49,12 +49,18 @@ def get_notion_tasks(is_evening=False):
                         "status": {
                             "equals": "done"
                         }
+                    },
+                    {
+                        "property": "上次编辑时间",
+                        "last_edited_time": {
+                            "on_or_after": today
+                        }
                     }
                 ]
             },
             "sorts": [
                 {
-                    "timestamp": "last_edited_time",
+                    "property": "上次编辑时间",
                     "direction": "descending"
                 }
             ]
@@ -96,6 +102,10 @@ def get_notion_tasks(is_evening=False):
             },
             "sorts": [
                 {
+                    "property": "四象限",
+                    "direction": "ascending"
+                },
+                {
                     "property": "状态",
                     "direction": "ascending"
                 }
@@ -129,9 +139,6 @@ def get_notion_tasks(is_evening=False):
             print(f"上级项目关系: {parent_relations}")
             print(f"子级项目关系: {child_relations}")
         
-        # 获取所有任务的ID列表
-        task_ids = [task['id'] for task in tasks_data.get('results', [])]
-        
         # 创建一个映射来存储所有任务的详细信息
         task_details = {}
         
@@ -148,6 +155,10 @@ def get_notion_tasks(is_evening=False):
                 'name': name,
                 'status': properties.get('状态', {}).get('status', {}).get('name', 'unknown'),
                 'assignee': properties.get('负责人', {}).get('select', {}).get('name', '未分配'),
+                'task_type': properties.get('任务类型', {}).get('select', {}).get('name', '未分类'),
+                'priority': properties.get('四象限', {}).get('select', {}).get('name', 'P3'),
+                'start_date': properties.get('开始日期', {}).get('date', {}).get('start', ''),
+                'due_date': properties.get('截止日期', {}).get('date', {}).get('start', ''),
                 'parent_tasks': [],
                 'child_tasks': [],
                 'blocking': properties.get('正在阻止', {}).get('relation', []),
@@ -172,7 +183,9 @@ def get_notion_tasks(is_evening=False):
                         parent_info = {
                             'id': parent_id,
                             'name': parent_properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务'),
-                            'status': parent_properties.get('状态', {}).get('status', {}).get('name', 'unknown')
+                            'status': parent_properties.get('状态', {}).get('status', {}).get('name', 'unknown'),
+                            'task_type': parent_properties.get('任务类型', {}).get('select', {}).get('name', '未分类'),
+                            'priority': parent_properties.get('四象限', {}).get('select', {}).get('name', 'P3')
                         }
                         print(f"找到父任务: {parent_info['name']}")
                         task_details[task_id]['parent_tasks'].append(parent_info)
@@ -196,6 +209,8 @@ def get_notion_tasks(is_evening=False):
                             'id': child_id,
                             'name': child_properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务'),
                             'status': child_properties.get('状态', {}).get('status', {}).get('name', 'unknown'),
+                            'task_type': child_properties.get('任务类型', {}).get('select', {}).get('name', '未分类'),
+                            'priority': child_properties.get('四象限', {}).get('select', {}).get('name', 'P3'),
                             'blocked_by': child_properties.get('被阻止', {}).get('relation', []),
                             'blocking': child_properties.get('正在阻止', {}).get('relation', [])
                         }
@@ -218,12 +233,11 @@ def format_message(tasks_data):
     messages = []
     tasks_by_assignee = {}
     all_tasks = {}  # 存储所有任务的映射
-    parent_to_children = {}  # 存储父任务到子任务的映射
     
     print(f"\n=== 开始处理任务 ===")
     print(f"总任务数: {len(tasks_data.get('results', []))}")
     
-    # 第一步：收集所有任务信息并建立父子关系映射
+    # 第一步：收集所有任务信息
     for result in tasks_data.get('results', []):
         try:
             task_details = result.get('details', {})
@@ -234,32 +248,18 @@ def format_message(tasks_data):
             task_id = task_details['id']
             all_tasks[task_id] = task_details
             
-            # 如果这个任务有子任务，添加到父子映射中
-            if task_details['child_tasks']:
-                parent_to_children[task_id] = task_details['child_tasks']
-                print(f"任务 '{task_details['name']}' 有 {len(task_details['child_tasks'])} 个子任务")
+            # 如果任务没有父任务，添加到对应负责人的列表中
+            if not task_details['parent_tasks']:
+                assignee = task_details['assignee']
+                if assignee not in tasks_by_assignee:
+                    tasks_by_assignee[assignee] = []
+                tasks_by_assignee[assignee].append(task_details)
+                print(f"添加顶级任务: {task_details['name']}")
+            else:
+                print(f"跳过子任务: {task_details['name']}")
             
         except Exception as e:
             print(f"处理任务时出错: {str(e)}")
-            continue
-    
-    print(f"\n=== 任务分组 ===")
-    # 第二步：按负责人分组（只处理顶级任务）
-    for task_id, task in all_tasks.items():
-        try:
-            # 如果任务是子任务，跳过
-            if task['parent_tasks']:
-                print(f"跳过子任务: {task['name']}")
-                continue
-            
-            print(f"添加顶级任务: {task['name']}")
-            assignee = task['assignee']
-            if assignee not in tasks_by_assignee:
-                tasks_by_assignee[assignee] = []
-            tasks_by_assignee[assignee].append(task)
-            
-        except Exception as e:
-            print(f"分组任务时出错: {str(e)}")
             continue
     
     # 如果没有任务数据
@@ -272,13 +272,30 @@ def format_message(tasks_data):
         total_tasks = sum(1 + len(task['child_tasks']) for task in tasks)
         message = [f"📋 待办任务 | {assignee} (共{total_tasks}条)\n"]
         
-        # 按状态排序：inbox -> pedding -> doing -> done
+        # 按优先级和状态排序
+        priority_order = {'P0 重要紧急': 0, 'P1 重要不紧急': 1, 'P2 紧急不重要': 2, 'P3 不重要不紧急': 3}
         status_order = {'inbox': 0, 'pedding': 1, 'doing': 2, 'done': 3}
-        tasks.sort(key=lambda x: status_order.get(x['status'], 999))
+        
+        tasks.sort(key=lambda x: (
+            priority_order.get(x['priority'], 999),
+            status_order.get(x['status'], 999)
+        ))
         
         for i, task in enumerate(tasks, 1):
             # 添加主任务
-            message.append(f"{i}. {task['name']} | {task['status']}")
+            task_line = [f"{i}. {task['name']} | {task['status']}"]
+            
+            # 如果有优先级和任务类型，添加到任务信息中
+            if task['priority'] != 'P3' or task['task_type'] != '未分类':
+                extra_info = []
+                if task['priority'] != 'P3':
+                    extra_info.append(task['priority'][:2])  # 只显示P0、P1等
+                if task['task_type'] != '未分类':
+                    extra_info.append(task['task_type'])
+                if extra_info:
+                    task_line.append(f" ({' | '.join(extra_info)})")
+            
+            message.append(''.join(task_line))
             
             # 添加主任务的阻止关系
             if task['blocked_by']:
@@ -289,13 +306,31 @@ def format_message(tasks_data):
                 if blocked_names:
                     message.append(f"   ⛔️ 被阻止: {', '.join(blocked_names)}")
             
-            # 添加子任务（按状态排序）
+            # 添加子任务（按优先级和状态排序）
             if task['child_tasks']:
-                sorted_children = sorted(task['child_tasks'], 
-                                      key=lambda x: status_order.get(x['status'], 999))
+                sorted_children = sorted(
+                    task['child_tasks'],
+                    key=lambda x: (
+                        priority_order.get(x['priority'], 999),
+                        status_order.get(x['status'], 999)
+                    )
+                )
+                
                 for child in sorted_children:
                     # 添加子任务
                     child_line = [f"   └─ {child['name']} | {child['status']}"]
+                    
+                    # 如果子任务有优先级和任务类型，添加到任务信息中
+                    if child['priority'] != 'P3' or child['task_type'] != '未分类':
+                        extra_info = []
+                        if child['priority'] != 'P3':
+                            extra_info.append(child['priority'][:2])
+                        if child['task_type'] != '未分类':
+                            extra_info.append(child['task_type'])
+                        if extra_info:
+                            child_line.append(f" ({' | '.join(extra_info)})")
+                    
+                    message.append(''.join(child_line))
                     
                     # 添加子任务的阻止关系
                     if child.get('blocked_by'):
@@ -304,11 +339,12 @@ def format_message(tasks_data):
                             blocked_name = b.get('title', [{}])[0].get('plain_text', '未知任务')
                             blocked_names.append(blocked_name)
                         if blocked_names:
-                            child_line.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
-                    
-                    message.append('\n'.join(child_line))
+                            message.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
+            
+            # 在每个主任务后添加空行，增加可读性
+            message.append('')
         
-        messages.append('\n'.join(message))
+        messages.append('\n'.join(message).rstrip())  # 移除最后的空行
     
     return "\n\n---\n\n".join(messages) if len(messages) > 1 else messages[0]
 
