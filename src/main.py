@@ -37,7 +37,10 @@ def get_notion_tasks(is_evening=False):
         "Content-Type": "application/json"
     }
     
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # 获取今天的开始和结束时间（UTC）
+    today = datetime.now(timezone.utc)
+    today_start = today.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    today_end = today.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
     
     if is_evening:
         # 晚上查询当天已完成的任务
@@ -51,23 +54,11 @@ def get_notion_tasks(is_evening=False):
                         }
                     },
                     {
-                        "or": [
-                            {
-                                "property": "上次编辑时间",
-                                "last_edited_time": {
-                                    "on_or_after": today,
-                                    "on_or_before": today
-                                }
-                            },
-                            {
-                                "property": "状态",
-                                "status": {
-                                    "changed_to": "done",
-                                    "on_or_after": today,
-                                    "on_or_before": today
-                                }
-                            }
-                        ]
+                        "property": "上次编辑时间",
+                        "last_edited_time": {
+                            "after": today_start,
+                            "before": today_end
+                        }
                     }
                 ]
             },
@@ -75,12 +66,9 @@ def get_notion_tasks(is_evening=False):
                 {
                     "property": "四象限",
                     "direction": "ascending"
-                },
-                {
-                    "property": "上次编辑时间",
-                    "direction": "descending"
                 }
-            ]
+            ],
+            "page_size": 100  # 增加每页数量，减少请求次数
         }
     else:
         # 早上的待办任务查询
@@ -106,7 +94,7 @@ def get_notion_tasks(is_evening=False):
                     {
                         "property": "开始日期",
                         "date": {
-                            "on_or_before": today
+                            "on_or_before": today.strftime("%Y-%m-%d")
                         }
                     }
                 ]
@@ -116,7 +104,8 @@ def get_notion_tasks(is_evening=False):
                     "property": "四象限",
                     "direction": "ascending"
                 }
-            ]
+            ],
+            "page_size": 100  # 增加每页数量，减少请求次数
         }
     
     try:
@@ -126,26 +115,43 @@ def get_notion_tasks(is_evening=False):
         all_tasks = []
         has_more = True
         start_cursor = None
+        max_retries = 3
+        retry_count = 0
         
-        # 使用分页获取所有任务
-        while has_more:
-            if start_cursor:
-                body['start_cursor'] = start_cursor
+        # 使用分页获取所有任务，添加重试机制
+        while has_more and retry_count < max_retries:
+            try:
+                if start_cursor:
+                    body['start_cursor'] = start_cursor
                 
-            response = requests.post(
-                f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
-                headers=headers,
-                json=body
-            )
-            
-            if response.status_code != 200:
-                print(f"Notion API错误: {response.text}")
-                return {"results": []}
-            
-            data = response.json()
-            all_tasks.extend(data.get('results', []))
-            has_more = data.get('has_more', False)
-            start_cursor = data.get('next_cursor')
+                response = requests.post(
+                    f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
+                    headers=headers,
+                    json=body,
+                    timeout=30  # 添加超时设置
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    all_tasks.extend(data.get('results', []))
+                    has_more = data.get('has_more', False)
+                    start_cursor = data.get('next_cursor')
+                    retry_count = 0  # 重置重试计数
+                elif response.status_code == 429:  # Rate limit
+                    retry_count += 1
+                    print(f"达到速率限制，等待重试 ({retry_count}/{max_retries})")
+                    time.sleep(2 ** retry_count)  # 指数退避
+                else:
+                    print(f"Notion API错误: {response.text}")
+                    break
+                    
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                print(f"请求超时，重试 ({retry_count}/{max_retries})")
+                time.sleep(2 ** retry_count)
+            except Exception as e:
+                print(f"请求出错: {str(e)}")
+                break
         
         tasks_data = {"results": all_tasks}
         
