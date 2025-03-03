@@ -198,27 +198,53 @@ def format_message(tasks_data):
     """格式化早上的待办任务消息"""
     messages = []
     tasks_by_assignee = {}
+    all_tasks = {}  # 存储所有任务的映射
     
-    print(f"开始处理 {len(tasks_data.get('results', []))} 个任务...")
+    print(f"\n=== 开始处理任务 ===")
+    print(f"总任务数: {len(tasks_data.get('results', []))}")
     
-    # 第一步：收集所有任务信息并按负责人分组
+    # 第一步：收集所有任务信息
     for result in tasks_data.get('results', []):
         try:
             task_details = result.get('details', {})
             if not task_details:
+                print(f"警告: 任务缺少详细信息")
                 continue
             
-            # 如果任务有父任务，跳过（稍后会作为子任务显示）
-            if task_details['parent_tasks']:
-                continue
+            task_id = task_details['id']
+            print(f"\n任务: {task_details['name']}")
+            print(f"父任务: {[p['name'] for p in task_details['parent_tasks']]}")
+            print(f"子任务: {[c['name'] for c in task_details['child_tasks']]}")
             
-            assignee = task_details['assignee']
-            if assignee not in tasks_by_assignee:
-                tasks_by_assignee[assignee] = []
-            tasks_by_assignee[assignee].append(task_details)
+            all_tasks[task_id] = task_details
             
         except Exception as e:
             print(f"处理任务时出错: {str(e)}")
+            continue
+    
+    print(f"\n=== 任务分组 ===")
+    # 第二步：按负责人分组（只处理顶级任务）
+    for task_id, task in all_tasks.items():
+        try:
+            # 检查是否为子任务
+            is_child = False
+            for other_task in all_tasks.values():
+                if any(child['id'] == task_id for child in other_task['child_tasks']):
+                    is_child = True
+                    print(f"任务 '{task['name']}' 是子任务，跳过")
+                    break
+            
+            if is_child:
+                continue  # 跳过子任务
+            
+            print(f"添加顶级任务: {task['name']}")
+            assignee = task['assignee']
+            if assignee not in tasks_by_assignee:
+                tasks_by_assignee[assignee] = []
+            tasks_by_assignee[assignee].append(task)
+            
+        except Exception as e:
+            print(f"分组任务时出错: {str(e)}")
             continue
     
     # 如果没有任务数据
@@ -264,7 +290,7 @@ def format_message(tasks_data):
                     child_line = [f"   └─ {child['name']} | {child['status']}"]
                     
                     # 添加子任务的阻止关系
-                    if child['blocked_by']:
+                    if child.get('blocked_by'):
                         blocked_names = []
                         for b in child['blocked_by']:
                             blocked_name = b.get('title', [{}])[0].get('plain_text', '未知任务')
@@ -272,7 +298,7 @@ def format_message(tasks_data):
                         if blocked_names:
                             child_line.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
                     
-                    if child['blocking']:
+                    if child.get('blocking'):
                         blocking_names = []
                         for b in child['blocking']:
                             blocking_name = b.get('title', [{}])[0].get('plain_text', '未知任务')
