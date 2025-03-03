@@ -81,12 +81,6 @@ def get_notion_tasks(is_evening=False):
                             {
                                 "property": "状态",
                                 "status": {
-                                    "equals": "pedding"
-                                }
-                            },
-                            {
-                                "property": "状态",
-                                "status": {
                                     "equals": "doing"
                                 }
                             }
@@ -256,7 +250,7 @@ def format_message(tasks_data):
         
         # 按优先级和状态排序
         priority_order = {'P0 重要紧急': 0, 'P1 重要不紧急': 1, 'P2 紧急不重要': 2, 'P3 不重要不紧急': 3}
-        status_order = {'inbox': 0, 'pedding': 1, 'doing': 2, 'done': 3}
+        status_order = {'inbox': 0, 'doing': 1, 'done': 2}
         
         # 对主任务进行排序
         tasks.sort(key=lambda x: (
@@ -301,6 +295,9 @@ def format_message(tasks_data):
                     )
                 )
                 
+                # 添加子任务标题
+                message.append("   子任务:")
+                
                 for child in sorted_children:
                     # 添加子任务
                     child_line = [f"   └─ {child['name']} | {child['status']}"]
@@ -325,6 +322,9 @@ def format_message(tasks_data):
                             blocked_names.append(blocked_name)
                         if blocked_names:
                             message.append(f"      ⛔️ 被阻止: {', '.join(blocked_names)}")
+                    
+                    # 每个子任务后添加空行
+                    message.append('')
             
             # 在每个主任务后添加空行，增加可读性
             message.append('')
