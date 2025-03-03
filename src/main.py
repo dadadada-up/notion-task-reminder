@@ -37,8 +37,6 @@ def get_notion_tasks(is_evening=False):
         "Content-Type": "application/json"
     }
     
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    
     if is_evening:
         # 晚上查询当天已完成的任务
         body = {
@@ -47,7 +45,7 @@ def get_notion_tasks(is_evening=False):
                     {
                         "property": "状态",
                         "status": {
-                            "equals": "已完成"
+                            "equals": "done"
                         }
                     }
                 ]
@@ -63,27 +61,23 @@ def get_notion_tasks(is_evening=False):
         # 早上的待办任务查询
         body = {
             "filter": {
-                "and": [
+                "or": [
                     {
-                        "or": [
-                            {
-                                "property": "状态",
-                                "status": {
-                                    "equals": "还未开始"
-                                }
-                            },
-                            {
-                                "property": "状态",
-                                "status": {
-                                    "equals": "进行中"
-                                }
-                            }
-                        ]
+                        "property": "状态",
+                        "status": {
+                            "equals": "inbox"
+                        }
                     },
                     {
-                        "property": "开始日期",
-                        "date": {
-                            "on_or_before": today
+                        "property": "状态",
+                        "status": {
+                            "equals": "pedding"
+                        }
+                    },
+                    {
+                        "property": "状态",
+                        "status": {
+                            "equals": "doing"
                         }
                     }
                 ]
@@ -159,6 +153,15 @@ def format_message(tasks_data):
             except (IndexError, AttributeError) as e:
                 print(f"获取任务名称时出错: {str(e)}")
                 
+            # 获取任务状态
+            status = 'unknown'
+            try:
+                status_data = properties.get('状态', {}).get('status', {})
+                if isinstance(status_data, dict):
+                    status = status_data.get('name', 'unknown')
+            except AttributeError as e:
+                print(f"获取任务状态时出错: {str(e)}")
+                
             assignee = '未分配'
             try:
                 assignee_data = properties.get('负责人', {}).get('select', {})
@@ -174,19 +177,11 @@ def format_message(tasks_data):
             # 安全地获取关联信息
             task_info = {
                 'name': name,
-                'parent_project': [],
+                'status': status,
                 'sub_tasks': [],
                 'blocking_tasks': [],
                 'blocked_by_tasks': []
             }
-            
-            # 获取上级项目
-            try:
-                parent_data = properties.get('上级项目', {}).get('relation', [])
-                if isinstance(parent_data, list):
-                    task_info['parent_project'] = parent_data
-            except AttributeError as e:
-                print(f"获取上级项目时出错: {str(e)}")
             
             # 获取子任务
             try:
@@ -229,19 +224,8 @@ def format_message(tasks_data):
             ]
             
             for i, task in enumerate(tasks, 1):
-                task_message = [f"{i}. {task['name']}"]
-                
-                # 添加上级项目信息
-                if task['parent_project']:
-                    try:
-                        parent_names = []
-                        for p in task['parent_project']:
-                            if isinstance(p, dict) and 'id' in p:
-                                parent_names.append(p.get('title', [{}])[0].get('plain_text', '未知项目'))
-                        if parent_names:
-                            task_message.append(f"   🔗 上级项目: {', '.join(filter(None, parent_names))}")
-                    except (IndexError, AttributeError) as e:
-                        print(f"处理上级项目显示时出错: {str(e)}")
+                # 添加主任务信息
+                task_message = [f"{i}. {task['name']} | {task['status']}"]
                 
                 # 添加子任务信息
                 if task['sub_tasks']:
@@ -251,35 +235,33 @@ def format_message(tasks_data):
                             if isinstance(sub, dict) and 'id' in sub:
                                 sub_name = sub.get('title', [{}])[0].get('plain_text', '未知子任务')
                                 sub_status = sub.get('status', '未知')
-                                sub_task_lines.append(f"      - {sub_name} [{sub_status}]")
+                                
+                                # 构建子任务消息
+                                sub_task_msg = [f"   - {sub_name} | {sub_status}"]
+                                
+                                # 添加子任务的阻止关系
+                                if sub.get('blocked_by_tasks'):
+                                    blocked_names = []
+                                    for b in sub['blocked_by_tasks']:
+                                        if isinstance(b, dict) and 'id' in b:
+                                            blocked_names.append(b.get('title', [{}])[0].get('plain_text', '未知任务'))
+                                    if blocked_names:
+                                        sub_task_msg.append(f"     ⛔️ 被阻止: {', '.join(filter(None, blocked_names))}")
+                                
+                                if sub.get('blocking_tasks'):
+                                    blocking_names = []
+                                    for b in sub['blocking_tasks']:
+                                        if isinstance(b, dict) and 'id' in b:
+                                            blocking_names.append(b.get('title', [{}])[0].get('plain_text', '未知任务'))
+                                    if blocking_names:
+                                        sub_task_msg.append(f"     🚫 正在阻止: {', '.join(filter(None, blocking_names))}")
+                                
+                                sub_task_lines.extend(sub_task_msg)
+                                
                         if sub_task_lines:
-                            task_message.append("   👶 子任务:")
                             task_message.extend(sub_task_lines)
                     except (IndexError, AttributeError) as e:
                         print(f"处理子任务显示时出错: {str(e)}")
-                
-                # 添加阻止关系信息
-                if task['blocked_by_tasks']:
-                    try:
-                        blocked_names = []
-                        for b in task['blocked_by_tasks']:
-                            if isinstance(b, dict) and 'id' in b:
-                                blocked_names.append(b.get('title', [{}])[0].get('plain_text', '未知任务'))
-                        if blocked_names:
-                            task_message.append(f"   ⛔️ 被阻止: {', '.join(filter(None, blocked_names))}")
-                    except (IndexError, AttributeError) as e:
-                        print(f"处理被阻止任务显示时出错: {str(e)}")
-                
-                if task['blocking_tasks']:
-                    try:
-                        blocking_names = []
-                        for b in task['blocking_tasks']:
-                            if isinstance(b, dict) and 'id' in b:
-                                blocking_names.append(b.get('title', [{}])[0].get('plain_text', '未知任务'))
-                        if blocking_names:
-                            task_message.append(f"   🚫 正在阻止: {', '.join(filter(None, blocking_names))}")
-                    except (IndexError, AttributeError) as e:
-                        print(f"处理正在阻止任务显示时出错: {str(e)}")
                 
                 message.append('\n'.join(task_message))
             
