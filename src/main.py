@@ -68,7 +68,7 @@ def get_notion_tasks(is_evening=False):
                     "direction": "ascending"
                 }
             ],
-            "page_size": 100  # 增加每页数量，减少请求次数
+            "page_size": 100
         }
     else:
         # 早上的待办任务查询
@@ -92,10 +92,20 @@ def get_notion_tasks(is_evening=False):
                         ]
                     },
                     {
-                        "property": "开始日期",
-                        "date": {
-                            "on_or_before": today.strftime("%Y-%m-%d")
-                        }
+                        "or": [
+                            {
+                                "property": "开始日期",
+                                "date": {
+                                    "is_empty": True
+                                }
+                            },
+                            {
+                                "property": "开始日期",
+                                "date": {
+                                    "on_or_before": today.strftime("%Y-%m-%d")
+                                }
+                            }
+                        ]
                     }
                 ]
             },
@@ -105,7 +115,7 @@ def get_notion_tasks(is_evening=False):
                     "direction": "ascending"
                 }
             ],
-            "page_size": 100  # 增加每页数量，减少请求次数
+            "page_size": 100
         }
     
     try:
@@ -637,6 +647,10 @@ def send_message(message):
     return any(results)
 
 def wait_until_send_time():
+    # 如果是 GitHub Actions 环境，直接发送
+    if os.environ.get('GITHUB_ACTIONS'):
+        return
+        
     beijing_tz = pytz.timezone('Asia/Shanghai')
     target_time_str = os.environ.get('SEND_TIME', '08:00')  # 默认早上8点
     
