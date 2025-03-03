@@ -163,8 +163,8 @@ def get_notion_tasks(is_evening=False):
             priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3')
             
             # 获取关系
-            parent_relations = properties.get('上级项目', {}).get('relation', [])
-            child_relations = properties.get('子级项目', {}).get('relation', [])
+            parent_relations = properties.get('上级 项目', {}).get('relation', [])  # 注意空格
+            child_relations = properties.get('子级 项目', {}).get('relation', [])   # 注意空格
             blocked_by = properties.get('被阻止', {}).get('relation', [])
             
             task_info = {
