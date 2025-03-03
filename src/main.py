@@ -60,9 +60,9 @@ def get_notion_tasks(is_evening=False):
             ]
         }
     else:
-        # 早上的待办任务查询保持不变
+        # 早上的待办任务查询
         body = {
-            "filter": {  # 添加 filter 包装
+            "filter": {
                 "and": [
                     {
                         "or": [
@@ -87,18 +87,12 @@ def get_notion_tasks(is_evening=False):
                         }
                     }
                 ]
-            },
-            "sorts": [
-                {
-                    "property": "四象限",
-                    "direction": "ascending"
-                }
-            ]
+            }
         }
     
     try:
         print("正在发送请求到Notion API...")
-        print(f"查询条件: {body}")  # 添加这行来打印查询条件
+        print(f"查询条件: {body}")
         response = requests.post(
             f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
             headers=headers,
@@ -109,8 +103,34 @@ def get_notion_tasks(is_evening=False):
         if response.status_code != 200:
             print(f"Notion API错误: {response.text}")
             return {"results": []}
+        
+        tasks_data = response.json()
+        
+        # 获取所有任务的ID列表
+        task_ids = [task['id'] for task in tasks_data.get('results', [])]
+        
+        # 获取每个任务的详细信息
+        for task in tasks_data.get('results', []):
+            properties = task.get('properties', {})
             
-        return response.json()
+            # 获取子任务
+            if '子级项目' in properties:
+                sub_task_ids = [relation['id'] for relation in properties['子级项目'].get('relation', [])]
+                if sub_task_ids:
+                    # 查询每个子任务的状态
+                    for sub_id in sub_task_ids:
+                        sub_response = requests.get(
+                            f"https://api.notion.com/v1/pages/{sub_id}",
+                            headers=headers
+                        )
+                        if sub_response.status_code == 200:
+                            sub_data = sub_response.json()
+                            # 更新子任务的状态信息
+                            for relation in properties['子级项目']['relation']:
+                                if relation['id'] == sub_id:
+                                    relation['status'] = sub_data.get('properties', {}).get('状态', {}).get('status', {}).get('name', '未知')
+        
+        return tasks_data
     except Exception as e:
         print(f"获取Notion任务时出错: {str(e)}")
         return {"results": []}
@@ -124,53 +144,72 @@ def format_message(tasks_data):
     for result in tasks_data.get('results', []):
         properties = result.get('properties', {})
         
-        # 获取任务信息
+        # 获取任务基本信息
         name = properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
         assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')
-        priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3 不重要不紧急')
-        task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
-        due_date = properties.get('截止日期', {}).get('date', {}).get('start', '未设置')
+        
+        # 获取关联信息
+        parent_project = properties.get('上级项目', {}).get('relation', [])
+        sub_tasks = properties.get('子级项目', {}).get('relation', [])
+        blocking_tasks = properties.get('正在阻止', {}).get('relation', [])
+        blocked_by_tasks = properties.get('被阻止', {}).get('relation', [])
         
         # 初始化该负责人的任务列表
         if assignee not in tasks_by_assignee:
             tasks_by_assignee[assignee] = []
         
-        # 添加任务，包含优先级信息
-        priority_short = 'P' + str(PRIORITY_ORDER.get(priority, 3))
+        # 添加任务信息
         tasks_by_assignee[assignee].append({
             'name': name,
-            'type': task_type,
-            'due_date': due_date,
-            'priority': priority,
-            'priority_short': priority_short,
-            'days_diff': (datetime.strptime(due_date, '%Y-%m-%d').date() - datetime.now().date()).days if due_date != '未设置' else None
+            'parent_project': parent_project,
+            'sub_tasks': sub_tasks,
+            'blocking_tasks': blocking_tasks,
+            'blocked_by_tasks': blocked_by_tasks
         })
     
     for assignee, tasks in tasks_by_assignee.items():
-        # 统计信息
-        p0_count = sum(1 for t in tasks if 'P0' in t['priority'])
-        p1_count = sum(1 for t in tasks if 'P1' in t['priority'])
-        overdue_count = sum(1 for t in tasks if t['days_diff'] is not None and t['days_diff'] < 0)
-        
         message = [
             f"📋 待办任务 | {assignee} (共{len(tasks)}条)\n"
         ]
         
-        # 按优先级排序任务
-        tasks.sort(key=lambda x: PRIORITY_ORDER.get(x['priority'], 3))
-        
         # 添加任务列表
         for i, task in enumerate(tasks, 1):
-            message.append(
-                f"{i}. {task['name']} | {task['type']} | {task['priority_short']} | {task['due_date']}"
-            )
+            task_message = [f"{i}. {task['name']}"]
+            
+            # 添加上级项目（如果有）
+            if task['parent_project']:
+                parent_names = [p.get('title', [{}])[0].get('plain_text', '') for p in task['parent_project']]
+                if parent_names:
+                    task_message.append(f"   🔗 上级项目: {', '.join(parent_names)}")
+            
+            # 添加子任务（如果有）
+            if task['sub_tasks']:
+                sub_task_lines = []
+                for sub in task['sub_tasks']:
+                    sub_name = sub.get('title', [{}])[0].get('plain_text', '')
+                    sub_status = sub.get('status', '未知')  # 使用新的状态信息
+                    sub_task_lines.append(f"      - {sub_name} [{sub_status}]")
+                if sub_task_lines:
+                    task_message.append("   👶 子任务:")
+                    task_message.extend(sub_task_lines)
+            
+            # 添加被阻止任务（如果有）
+            if task['blocked_by_tasks']:
+                blocked_names = [b.get('title', [{}])[0].get('plain_text', '') for b in task['blocked_by_tasks']]
+                if blocked_names:
+                    task_message.append(f"   ⛔️ 被阻止: {', '.join(blocked_names)}")
+            
+            # 添加正在阻止的任务（如果有）
+            if task['blocking_tasks']:
+                blocking_names = [b.get('title', [{}])[0].get('plain_text', '') for b in task['blocking_tasks']]
+                if blocking_names:
+                    task_message.append(f"   🚫 正在阻止: {', '.join(blocking_names)}")
+            
+            message.append('\n'.join(task_message))
         
-        # 添加统计信息
-        message.append(f"\n📊 统计: P0 {p0_count} | P1 {p1_count} | 逾期{overdue_count}")
-        
-        messages.append("\n".join(message))
+        messages.append('\n'.join(message))
     
-    # 为钉钉消息添加分隔线
+    # 为多个负责人的消息添加分隔线
     return "\n\n---\n\n".join(messages) if len(messages) > 1 else messages[0]
 
 def format_evening_message(tasks_data):
