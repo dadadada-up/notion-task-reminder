@@ -104,10 +104,6 @@ def get_notion_tasks(is_evening=False):
                 {
                     "property": "四象限",
                     "direction": "ascending"
-                },
-                {
-                    "property": "状态",
-                    "direction": "ascending"
                 }
             ]
         }
@@ -115,18 +111,32 @@ def get_notion_tasks(is_evening=False):
     try:
         print("正在发送请求到Notion API...")
         print(f"查询条件: {body}")
-        response = requests.post(
-            f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
-            headers=headers,
-            json=body
-        )
-        print(f"Notion API响应状态码: {response.status_code}")
         
-        if response.status_code != 200:
-            print(f"Notion API错误: {response.text}")
-            return {"results": []}
+        all_tasks = []
+        has_more = True
+        start_cursor = None
         
-        tasks_data = response.json()
+        # 使用分页获取所有任务
+        while has_more:
+            if start_cursor:
+                body['start_cursor'] = start_cursor
+                
+            response = requests.post(
+                f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
+                headers=headers,
+                json=body
+            )
+            
+            if response.status_code != 200:
+                print(f"Notion API错误: {response.text}")
+                return {"results": []}
+            
+            data = response.json()
+            all_tasks.extend(data.get('results', []))
+            has_more = data.get('has_more', False)
+            start_cursor = data.get('next_cursor')
+        
+        tasks_data = {"results": all_tasks}
         
         # 创建任务ID到任务信息的映射
         task_map = {}
@@ -136,27 +146,43 @@ def get_notion_tasks(is_evening=False):
             task_id = task['id']
             properties = task.get('properties', {})
             
-            task_info = {
-                'id': task_id,
-                'name': properties.get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务'),
-                'status': properties.get('状态', {}).get('status', {}).get('name', 'unknown'),
-                'assignee': properties.get('负责人', {}).get('select', {}).get('name', '未分配'),
-                'task_type': properties.get('任务类型', {}).get('select', {}).get('name', '未分类'),
-                'priority': properties.get('四象限', {}).get('select', {}).get('name', 'P3'),
-                'parent_tasks': [],
-                'child_tasks': [],
-                'blocked_by': properties.get('被阻止', {}).get('relation', []),
-                'blocking': properties.get('正在阻止', {}).get('relation', [])
-            }
+            # 获取任务名称
+            title = properties.get('任务名称', {}).get('title', [])
+            name = title[0].get('plain_text', '未命名任务') if title else '未命名任务'
             
-            # 收集父任务和子任务的ID
+            # 获取任务状态
+            status = properties.get('状态', {}).get('status', {}).get('name', 'unknown')
+            
+            # 获取负责人
+            assignee = properties.get('负责人', {}).get('select', {}).get('name', '未分配')
+            
+            # 获取任务类型
+            task_type = properties.get('任务类型', {}).get('select', {}).get('name', '未分类')
+            
+            # 获取优先级
+            priority = properties.get('四象限', {}).get('select', {}).get('name', 'P3')
+            
+            # 获取关系
             parent_relations = properties.get('上级项目', {}).get('relation', [])
             child_relations = properties.get('子级项目', {}).get('relation', [])
+            blocked_by = properties.get('被阻止', {}).get('relation', [])
             
-            task_info['parent_ids'] = [p['id'] for p in parent_relations]
-            task_info['child_ids'] = [c['id'] for c in child_relations]
+            task_info = {
+                'id': task_id,
+                'name': name,
+                'status': status,
+                'assignee': assignee,
+                'task_type': task_type,
+                'priority': priority,
+                'parent_ids': [p['id'] for p in parent_relations],
+                'child_ids': [c['id'] for c in child_relations],
+                'parent_tasks': [],
+                'child_tasks': [],
+                'blocked_by': blocked_by
+            }
             
             task_map[task_id] = task_info
+            print(f"收集任务: {name} (ID: {task_id})")
         
         # 第二遍遍历：建立父子关系
         for task_id, task_info in task_map.items():
@@ -172,7 +198,8 @@ def get_notion_tasks(is_evening=False):
             for child_id in task_info['child_ids']:
                 if child_id in task_map:
                     child_info = task_map[child_id]
-                    task_info['child_tasks'].append(child_info)
+                    if child_info not in task_info['child_tasks']:
+                        task_info['child_tasks'].append(child_info)
                     if task_info not in child_info['parent_tasks']:
                         child_info['parent_tasks'].append(task_info)
         
@@ -205,12 +232,14 @@ def format_message(tasks_data):
                 continue
             
             # 只处理顶级任务（没有父任务的任务）
-            if not task_details['parent_tasks']:
+            if not task_details.get('parent_ids', []):
                 assignee = task_details['assignee']
                 if assignee not in tasks_by_assignee:
                     tasks_by_assignee[assignee] = []
                 tasks_by_assignee[assignee].append(task_details)
                 print(f"添加顶级任务: {task_details['name']}")
+            else:
+                print(f"跳过子任务: {task_details['name']}")
         except Exception as e:
             print(f"处理任务时出错: {str(e)}")
             continue
@@ -229,6 +258,7 @@ def format_message(tasks_data):
         priority_order = {'P0 重要紧急': 0, 'P1 重要不紧急': 1, 'P2 紧急不重要': 2, 'P3 不重要不紧急': 3}
         status_order = {'inbox': 0, 'pedding': 1, 'doing': 2, 'done': 3}
         
+        # 对主任务进行排序
         tasks.sort(key=lambda x: (
             priority_order.get(x['priority'], 999),
             status_order.get(x['status'], 999)
@@ -260,9 +290,11 @@ def format_message(tasks_data):
                     message.append(f"   ⛔️ 被阻止: {', '.join(blocked_names)}")
             
             # 添加子任务（按优先级和状态排序）
-            if task.get('child_tasks'):
+            child_tasks = task.get('child_tasks', [])
+            if child_tasks:
+                # 对子任务进行排序
                 sorted_children = sorted(
-                    task['child_tasks'],
+                    child_tasks,
                     key=lambda x: (
                         priority_order.get(x['priority'], 999),
                         status_order.get(x['status'], 999)
