@@ -51,14 +51,31 @@ def get_notion_tasks(is_evening=False):
                         }
                     },
                     {
-                        "property": "上次编辑时间",
-                        "last_edited_time": {
-                            "on_or_after": today
-                        }
+                        "or": [
+                            {
+                                "property": "上次编辑时间",
+                                "last_edited_time": {
+                                    "on_or_after": today,
+                                    "on_or_before": today
+                                }
+                            },
+                            {
+                                "property": "状态",
+                                "status": {
+                                    "changed_to": "done",
+                                    "on_or_after": today,
+                                    "on_or_before": today
+                                }
+                            }
+                        ]
                     }
                 ]
             },
             "sorts": [
+                {
+                    "property": "四象限",
+                    "direction": "ascending"
+                },
                 {
                     "property": "上次编辑时间",
                     "direction": "descending"
