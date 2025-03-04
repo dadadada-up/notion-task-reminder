@@ -7,6 +7,23 @@ on:
     - cron: '30 13 * * *' # UTC 13:30 = 北京时间 21:30 (晚上任务准备)
     - cron: '0 14 * * *'  # UTC 14:00 = 北京时间 22:00 (晚上任务发送)
   workflow_dispatch:      # 允许手动触发
+    inputs:
+      task_type:
+        description: '任务类型'
+        required: true
+        default: 'morning'
+        type: choice
+        options:
+          - morning
+          - evening
+      action_type:
+        description: '操作类型'
+        required: true
+        default: 'prepare'
+        type: choice
+        options:
+          - prepare
+          - send
 
 jobs:
   send-reminder:
@@ -28,6 +45,26 @@ jobs:
     - name: Determine action type
       id: action-type
       run: |
+        # 如果是手动触发
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          TASK_TYPE="${{ github.event.inputs.task_type }}"
+          ACTION_TYPE="${{ github.event.inputs.action_type }}"
+          if [ "$TASK_TYPE" == "morning" ]; then
+            TIME=$([ "$ACTION_TYPE" == "prepare" ] && echo "07:00" || echo "08:00")
+            EMOJI="🌅"
+          else
+            TIME=$([ "$ACTION_TYPE" == "prepare" ] && echo "21:30" || echo "22:00")
+            EMOJI="🌙"
+          fi
+          
+          echo "type=$TASK_TYPE" >> $GITHUB_OUTPUT
+          echo "time=$TIME" >> $GITHUB_OUTPUT
+          echo "action=$ACTION_TYPE" >> $GITHUB_OUTPUT
+          echo "emoji=$EMOJI" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # 如果是定时触发
         hour_utc=$(date -u +%H)
         minute_utc=$(date -u +%M)
         if [ "$hour_utc" == "23" ]; then
@@ -55,8 +92,10 @@ jobs:
           echo "action=send" >> $GITHUB_OUTPUT
           echo "emoji=🌙" >> $GITHUB_OUTPUT
         else
-          echo "Invalid execution time" >> $GITHUB_OUTPUT
-          exit 1
+          echo "type=unknown" >> $GITHUB_OUTPUT
+          echo "time=unknown" >> $GITHUB_OUTPUT
+          echo "action=unknown" >> $GITHUB_OUTPUT
+          echo "emoji=❓" >> $GITHUB_OUTPUT
         fi
     
     - name: Download previous artifact
