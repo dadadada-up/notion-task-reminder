@@ -2,8 +2,10 @@ name: Daily Task Reminder
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # UTC 00:00 = 北京时间 08:00 (早上任务)
-    - cron: '0 14 * * *' # UTC 14:00 = 北京时间 22:00 (晚上任务)
+    - cron: '0 23 * * *'  # UTC 23:00 = 北京时间 07:00 (早上任务准备)
+    - cron: '0 0 * * *'   # UTC 00:00 = 北京时间 08:00 (早上任务发送)
+    - cron: '30 13 * * *' # UTC 13:30 = 北京时间 21:30 (晚上任务准备)
+    - cron: '0 14 * * *'  # UTC 14:00 = 北京时间 22:00 (晚上任务发送)
   workflow_dispatch:      # 允许手动触发
 
 jobs:
@@ -23,25 +25,45 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Determine reminder type
-      id: reminder-type
+    - name: Determine action type
+      id: action-type
       run: |
         hour_utc=$(date -u +%H)
-        if [ "$hour_utc" == "00" ]; then
+        minute_utc=$(date -u +%M)
+        if [ "$hour_utc" == "23" ]; then
+          echo "type=morning" >> $GITHUB_OUTPUT
+          echo "time=07:00" >> $GITHUB_OUTPUT
+          echo "action=prepare" >> $GITHUB_OUTPUT
+        elif [ "$hour_utc" == "00" ]; then
           echo "type=morning" >> $GITHUB_OUTPUT
           echo "time=08:00" >> $GITHUB_OUTPUT
+          echo "action=send" >> $GITHUB_OUTPUT
+        elif [ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "30" ]; then
+          echo "type=evening" >> $GITHUB_OUTPUT
+          echo "time=21:30" >> $GITHUB_OUTPUT
+          echo "action=prepare" >> $GITHUB_OUTPUT
         else
           echo "type=evening" >> $GITHUB_OUTPUT
           echo "time=22:00" >> $GITHUB_OUTPUT
+          echo "action=send" >> $GITHUB_OUTPUT
         fi
+    
+    - name: Download previous artifact
+      if: steps.action-type.outputs.action == 'send'
+      uses: actions/download-artifact@v2
+      with:
+        name: task-data
+        path: ./data
+      continue-on-error: true
     
     - name: Run reminder script
       env:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         DATABASE_ID: ${{ secrets.DATABASE_ID }}
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
-        REMINDER_TYPE: ${{ steps.reminder-type.outputs.type }}
-        SEND_TIME: ${{ steps.reminder-type.outputs.time }}
+        REMINDER_TYPE: ${{ steps.action-type.outputs.type }}
+        SEND_TIME: ${{ steps.action-type.outputs.time }}
+        ACTION_TYPE: ${{ steps.action-type.outputs.action }}
       run: |
         echo "=== 环境变量检查 ==="
         echo "Python 版本:"
@@ -52,19 +74,29 @@ jobs:
         TZ='Asia/Shanghai' date
         echo "REMINDER_TYPE: $REMINDER_TYPE"
         echo "SEND_TIME: $SEND_TIME"
+        echo "ACTION_TYPE: $ACTION_TYPE"
         echo "PUSHPLUS_TOKEN 长度: ${#PUSHPLUS_TOKEN}"
         echo "PUSHPLUS_TOKEN 前8位: ${PUSHPLUS_TOKEN:0:8}***"
         echo "=== 开始执行脚本 ==="
         python -u src/main.py
         echo "=== 脚本执行完成 ==="
     
+    - name: Upload artifact
+      if: steps.action-type.outputs.action == 'prepare'
+      uses: actions/upload-artifact@v2
+      with:
+        name: task-data
+        path: ./data
+        retention-days: 1
+    
     - name: Create commit comment
-      if: ${{ steps.reminder-type.outputs.type == 'evening' }}
+      if: ${{ steps.action-type.outputs.type == 'evening' && steps.action-type.outputs.action == 'send' }}
       uses: peter-evans/commit-comment@v1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
           🌙 晚间任务提醒已触发
           
-          执行时间: ${{ steps.reminder-type.outputs.time }}
-          任务类型: ${{ steps.reminder-type.outputs.type }}
+          执行时间: ${{ steps.action-type.outputs.time }}
+          任务类型: ${{ steps.action-type.outputs.type }}
+          操作类型: ${{ steps.action-type.outputs.action }}

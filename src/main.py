@@ -7,6 +7,8 @@ import hmac
 import hashlib
 import base64
 import urllib.parse
+import json
+from pathlib import Path
 
 # 修改配置信息部分
 NOTION_TOKEN = os.environ.get('NOTION_TOKEN', "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")
@@ -610,6 +612,61 @@ def wait_until_send_time():
         print(f"等待发送时间，将在 {target_time_str} 发送...")
         time.sleep(wait_seconds)
 
+def prepare_task_data(is_evening=False):
+    """准备任务数据并保存到文件"""
+    print(f"准备{'晚间' if is_evening else '早间'}任务数据...")
+    
+    # 创建数据目录
+    data_dir = Path("./data")
+    data_dir.mkdir(exist_ok=True)
+    
+    # 获取任务数据
+    tasks = get_notion_tasks(is_evening)
+    message = format_evening_message(tasks) if is_evening else format_message(tasks)
+    
+    # 保存数据
+    data_file = data_dir / "task_data.json"
+    data = {
+        "message": message,
+        "type": "evening" if is_evening else "morning",
+        "tasks_count": len(tasks.get('results', [])),
+    }
+    
+    with open(data_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    
+    print(f"数据已保存到 {data_file}")
+    return True
+
+def send_cached_message():
+    """发送已缓存的消息"""
+    data_file = Path("./data/task_data.json")
+    
+    try:
+        # 读取缓存数据
+        with open(data_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        message = data["message"]
+        tasks_count = data["tasks_count"]
+        
+        print(f"从缓存读取到任务数据，共 {tasks_count} 条任务")
+        
+        # 发送消息
+        if send_message(message):
+            print("消息发送成功")
+            return True
+        else:
+            print("消息发送失败，尝试重新获取数据")
+            return False
+            
+    except FileNotFoundError:
+        print("未找到缓存数据文件")
+        return False
+    except Exception as e:
+        print(f"读取缓存数据出错: {str(e)}")
+        return False
+
 def main():
     try:
         # 添加时间调试信息
@@ -622,6 +679,7 @@ def main():
         print(f"北京时间: {beijing_now}")
         print(f"目标发送时间: {os.environ.get('SEND_TIME', '08:00')}")
         print(f"执行类型: {os.environ.get('REMINDER_TYPE', '未设置')}")
+        print(f"操作类型: {os.environ.get('ACTION_TYPE', '未设置')}")
         print("=== 时间信息结束 ===\n")
         
         # 检查环境变量
@@ -631,32 +689,39 @@ def main():
         print(f"NOTION_TOKEN: {'已设置' if NOTION_TOKEN else '未设置'}")
         print(f"DATABASE_ID: {'已设置' if DATABASE_ID else '未设置'}")
         
-        # 提前获取和处理数据
         is_evening = os.environ.get('REMINDER_TYPE') == 'evening'
-        print(f"开始获取{'已完成' if is_evening else '待处理'}任务...")
+        action_type = os.environ.get('ACTION_TYPE', 'send')
         
-        # 先获取数据
-        tasks = get_notion_tasks(is_evening)
-        if tasks.get('results'):
-            print(f"获取到 {len(tasks.get('results', []))} 个任务")
-            message = format_evening_message(tasks) if is_evening else format_message(tasks)
+        if action_type == 'prepare':
+            # 准备数据模式
+            if prepare_task_data(is_evening):
+                print("数据准备完成")
+                return
+            else:
+                raise Exception("数据准备失败")
         else:
-            print("没有获取到任何任务")
-            message = "今日没有已完成的任务。" if is_evening else "今日没有待办任务。"
-        
-        if not message or not message.strip():
-            message = "生成任务消息时出错，请检查日志。"
-        
-        # 等待到指定时间
-        wait_until_send_time()
-        
-        # 发送消息
-        print("发送消息...")
-        if send_message(message):
-            print("至少一个渠道发送成功!")
-            return
-        else:
-            print("所有渠道发送失败!")
+            # 发送模式
+            print(f"开始发送{'晚间' if is_evening else '早间'}任务消息...")
+            
+            # 尝试发送缓存的消息
+            if send_cached_message():
+                print("缓存消息发送成功")
+                return
+                
+            # 如果发送缓存消息失败，实时获取并发送
+            print("尝试实时获取数据并发送...")
+            tasks = get_notion_tasks(is_evening)
+            if tasks.get('results'):
+                print(f"获取到 {len(tasks.get('results', []))} 个任务")
+                message = format_evening_message(tasks) if is_evening else format_message(tasks)
+                
+                if not message or not message.strip():
+                    message = "生成任务消息时出错，请检查日志。"
+                
+                if send_message(message):
+                    print("实时消息发送成功")
+                    return
+                    
             raise Exception("消息发送失败")
             
     except Exception as e:
