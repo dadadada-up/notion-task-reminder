@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
     
@@ -50,10 +50,11 @@ jobs:
     
     - name: Download previous artifact
       if: steps.action-type.outputs.action == 'send'
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: task-data
         path: ./data
+        merge-multiple: true
       continue-on-error: true
     
     - name: Run reminder script
@@ -83,15 +84,16 @@ jobs:
     
     - name: Upload artifact
       if: steps.action-type.outputs.action == 'prepare'
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: task-data
         path: ./data
         retention-days: 1
+        compression-level: 9
     
     - name: Create commit comment
       if: ${{ steps.action-type.outputs.type == 'evening' && steps.action-type.outputs.action == 'send' }}
-      uses: peter-evans/commit-comment@v1
+      uses: peter-evans/commit-comment@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
