@@ -148,6 +148,11 @@ jobs:
         retention-days: 1
         compression-level: 9
     
+    - name: Get current time
+      id: current-time
+      run: |
+        echo "time=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+
     - name: Create execution record
       uses: peter-evans/commit-comment@v3
       with:
@@ -160,4 +165,4 @@ jobs:
           操作类型: ${{ steps.action-type.outputs.action }}
           ${{ steps.action-type.outputs.action == 'prepare' && format('任务数量: {0}', steps.reminder.outputs.task_count) || '' }}
           
-          运行时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+          运行时间: ${{ steps.current-time.outputs.time }}
