@@ -392,15 +392,23 @@ def format_message(tasks_data):
 def format_evening_message(tasks):
     """格式化晚间已完成任务消息"""
     try:
-        # 获取今天的日期
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # 获取北京时间的今天日期
+        beijing_tz = pytz.timezone('Asia/Shanghai')
+        today = datetime.now(beijing_tz).strftime("%Y-%m-%d")
         today_tasks = []
         
         # 过滤今天完成的任务
         for task in tasks.get('results', []):
-            last_edited = task.get('last_edited_time', '').split('T')[0]
-            if last_edited == today:
+            # 将 UTC 时间转换为北京时间
+            last_edited_utc = datetime.fromisoformat(task.get('last_edited_time', '').replace('Z', '+00:00'))
+            last_edited_beijing = last_edited_utc.astimezone(beijing_tz)
+            last_edited_date = last_edited_beijing.strftime("%Y-%m-%d")
+            
+            if last_edited_date == today:
                 today_tasks.append(task)
+                print(f"找到今天完成的任务: {task.get('properties', {}).get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')}")
+            else:
+                print(f"跳过非今天完成的任务: {task.get('properties', {}).get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')} (完成时间: {last_edited_date})")
         
         if not today_tasks:
             return "✅ 今日完成 (0/0)\n\n还没有完成任何任务哦！加油！"
@@ -455,7 +463,7 @@ def format_evening_message(tasks):
             type_stats += f"  • {task_type}: {count}\n"
         
         # 组合最终消息
-        final_message = header + "\n\n" + "\n\n".join(message_lines) + "\n" + stats + type_stats
+        final_message = header + "\n\n" + "\n".join(message_lines) + "\n" + stats + type_stats
         
         return final_message
         
