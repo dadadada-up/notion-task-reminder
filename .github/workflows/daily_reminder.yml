@@ -2,20 +2,20 @@ name: Daily Task Reminder
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # UTC 23:00 = 北京时间 07:00 (早上任务准备)
-    - cron: '0 0 * * *'   # UTC 00:00 = 北京时间 08:00 (早上任务发送)
-    - cron: '30 13 * * *' # UTC 13:30 = 北京时间 21:30 (晚上任务准备)
-    - cron: '0 14 * * *'  # UTC 14:00 = 北京时间 22:00 (晚上任务发送)
+    - cron: '0 23 * * *'  # UTC 23:00 = 北京时间 07:00 (待办任务准备)
+    - cron: '0 0 * * *'   # UTC 00:00 = 北京时间 08:00 (待办任务发送)
+    - cron: '30 13 * * *' # UTC 13:30 = 北京时间 21:30 (完成任务准备)
+    - cron: '0 14 * * *'  # UTC 14:00 = 北京时间 22:00 (完成任务发送)
   workflow_dispatch:      # 允许手动触发
     inputs:
       task_type:
         description: '任务类型'
         required: true
-        default: 'morning'
+        default: 'daily_todo'
         type: choice
         options:
-          - morning
-          - evening
+          - daily_todo
+          - daily_done
       action_type:
         description: '操作类型'
         required: true
@@ -49,12 +49,12 @@ jobs:
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           TASK_TYPE="${{ github.event.inputs.task_type }}"
           ACTION_TYPE="${{ github.event.inputs.action_type }}"
-          if [ "$TASK_TYPE" == "morning" ]; then
+          if [ "$TASK_TYPE" == "daily_todo" ]; then
             TIME=$([ "$ACTION_TYPE" == "prepare" ] && echo "07:00" || echo "08:00")
-            EMOJI="🌅"
+            EMOJI="📋"
           else
             TIME=$([ "$ACTION_TYPE" == "prepare" ] && echo "21:30" || echo "22:00")
-            EMOJI="🌙"
+            EMOJI="✅"
           fi
           
           echo "type=$TASK_TYPE" >> $GITHUB_OUTPUT
@@ -68,29 +68,29 @@ jobs:
         hour_utc=$(date -u +%H)
         minute_utc=$(date -u +%M)
         if [ "$hour_utc" == "23" ]; then
-          # UTC 23:00 = 北京时间 07:00 (早上任务准备)
-          echo "type=morning" >> $GITHUB_OUTPUT
+          # UTC 23:00 = 北京时间 07:00 (待办任务准备)
+          echo "type=daily_todo" >> $GITHUB_OUTPUT
           echo "time=07:00" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
-          echo "emoji=🌅" >> $GITHUB_OUTPUT
+          echo "emoji=📋" >> $GITHUB_OUTPUT
         elif [ "$hour_utc" == "00" ]; then
-          # UTC 00:00 = 北京时间 08:00 (早上任务发送)
-          echo "type=morning" >> $GITHUB_OUTPUT
+          # UTC 00:00 = 北京时间 08:00 (待办任务发送)
+          echo "type=daily_todo" >> $GITHUB_OUTPUT
           echo "time=08:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
-          echo "emoji=🌅" >> $GITHUB_OUTPUT
+          echo "emoji=📋" >> $GITHUB_OUTPUT
         elif [ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "30" ]; then
-          # UTC 13:30 = 北京时间 21:30 (晚上任务准备)
-          echo "type=evening" >> $GITHUB_OUTPUT
+          # UTC 13:30 = 北京时间 21:30 (完成任务准备)
+          echo "type=daily_done" >> $GITHUB_OUTPUT
           echo "time=21:30" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
-          echo "emoji=🌙" >> $GITHUB_OUTPUT
+          echo "emoji=✅" >> $GITHUB_OUTPUT
         elif [ "$hour_utc" == "14" ] && [ "$minute_utc" -lt "30" ]; then
-          # UTC 14:00 = 北京时间 22:00 (晚上任务发送)
-          echo "type=evening" >> $GITHUB_OUTPUT
+          # UTC 14:00 = 北京时间 22:00 (完成任务发送)
+          echo "type=daily_done" >> $GITHUB_OUTPUT
           echo "time=22:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
-          echo "emoji=🌙" >> $GITHUB_OUTPUT
+          echo "emoji=✅" >> $GITHUB_OUTPUT
         else
           echo "type=unknown" >> $GITHUB_OUTPUT
           echo "time=unknown" >> $GITHUB_OUTPUT
@@ -158,7 +158,7 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
-          ${{ steps.action-type.outputs.emoji }} ${{ steps.action-type.outputs.type == 'morning' && '早间' || '晚间' }}任务${{ steps.action-type.outputs.action == 'prepare' && '准备' || '发送' }}
+          ${{ steps.action-type.outputs.emoji }} ${{ steps.action-type.outputs.type == 'daily_todo' && '今日待办任务' || '今日已完成任务' }}${{ steps.action-type.outputs.action == 'prepare' && '准备' || '发送' }}
           
           执行时间: ${{ steps.action-type.outputs.time }}
           任务类型: ${{ steps.action-type.outputs.type }}

@@ -32,7 +32,7 @@ DINGTALK_TOKEN = None  # 禁用钉钉推送
 DINGTALK_SECRET = None
 DINGTALK_WEBHOOK = None
 
-def get_notion_tasks(is_evening=False):
+def get_notion_tasks(is_done=False):
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
         "Notion-Version": "2022-06-28",
@@ -49,7 +49,7 @@ def get_notion_tasks(is_evening=False):
     utc_start = beijing_start.astimezone(timezone.utc)
     utc_end = beijing_end.astimezone(timezone.utc)
     
-    if is_evening:
+    if is_done:
         # 晚上查询当天已完成的任务
         body = {
             "filter": {
@@ -612,23 +612,23 @@ def wait_until_send_time():
         print(f"等待发送时间，将在 {target_time_str} 发送...")
         time.sleep(wait_seconds)
 
-def prepare_task_data(is_evening=False):
+def prepare_task_data(is_done=False):
     """准备任务数据并保存到文件"""
-    print(f"准备{'晚间' if is_evening else '早间'}任务数据...")
+    print(f"准备{'已完成' if is_done else '待办'}任务数据...")
     
     # 创建数据目录
     data_dir = Path("./data")
     data_dir.mkdir(exist_ok=True)
     
     # 获取任务数据
-    tasks = get_notion_tasks(is_evening)
-    message = format_evening_message(tasks) if is_evening else format_message(tasks)
+    tasks = get_notion_tasks(is_done)
+    message = format_evening_message(tasks) if is_done else format_message(tasks)
     
     # 保存数据
     data_file = data_dir / "task_data.json"
     data = {
         "message": message,
-        "type": "evening" if is_evening else "morning",
+        "type": "daily_done" if is_done else "daily_todo",
         "tasks_count": len(tasks.get('results', [])),
     }
     
@@ -689,19 +689,19 @@ def main():
         print(f"NOTION_TOKEN: {'已设置' if NOTION_TOKEN else '未设置'}")
         print(f"DATABASE_ID: {'已设置' if DATABASE_ID else '未设置'}")
         
-        is_evening = os.environ.get('REMINDER_TYPE') == 'evening'
+        is_done = os.environ.get('REMINDER_TYPE') == 'daily_done'
         action_type = os.environ.get('ACTION_TYPE', 'send')
         
         if action_type == 'prepare':
             # 准备数据模式
-            if prepare_task_data(is_evening):
+            if prepare_task_data(is_done):
                 print("数据准备完成")
                 return
             else:
                 raise Exception("数据准备失败")
         else:
             # 发送模式
-            print(f"开始发送{'晚间' if is_evening else '早间'}任务消息...")
+            print(f"开始发送{'已完成' if is_done else '待办'}任务消息...")
             
             # 尝试发送缓存的消息
             if send_cached_message():
@@ -710,10 +710,10 @@ def main():
                 
             # 如果发送缓存消息失败，实时获取并发送
             print("尝试实时获取数据并发送...")
-            tasks = get_notion_tasks(is_evening)
+            tasks = get_notion_tasks(is_done)
             if tasks.get('results'):
                 print(f"获取到 {len(tasks.get('results', []))} 个任务")
-                message = format_evening_message(tasks) if is_evening else format_message(tasks)
+                message = format_evening_message(tasks) if is_done else format_message(tasks)
                 
                 if not message or not message.strip():
                     message = "生成任务消息时出错，请检查日志。"
