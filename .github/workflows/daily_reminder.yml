@@ -31,25 +31,32 @@ jobs:
         hour_utc=$(date -u +%H)
         minute_utc=$(date -u +%M)
         if [ "$hour_utc" == "23" ]; then
+          # UTC 23:00 = 北京时间 07:00 (早上任务准备)
           echo "type=morning" >> $GITHUB_OUTPUT
           echo "time=07:00" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
           echo "emoji=🌅" >> $GITHUB_OUTPUT
         elif [ "$hour_utc" == "00" ]; then
+          # UTC 00:00 = 北京时间 08:00 (早上任务发送)
           echo "type=morning" >> $GITHUB_OUTPUT
           echo "time=08:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
           echo "emoji=🌅" >> $GITHUB_OUTPUT
         elif [ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "30" ]; then
+          # UTC 13:30 = 北京时间 21:30 (晚上任务准备)
           echo "type=evening" >> $GITHUB_OUTPUT
           echo "time=21:30" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
           echo "emoji=🌙" >> $GITHUB_OUTPUT
-        else
+        elif [ "$hour_utc" == "14" ] && [ "$minute_utc" -lt "30" ]; then
+          # UTC 14:00 = 北京时间 22:00 (晚上任务发送)
           echo "type=evening" >> $GITHUB_OUTPUT
           echo "time=22:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
           echo "emoji=🌙" >> $GITHUB_OUTPUT
+        else
+          echo "Invalid execution time" >> $GITHUB_OUTPUT
+          exit 1
         fi
     
     - name: Download previous artifact
