@@ -34,18 +34,22 @@ jobs:
           echo "type=morning" >> $GITHUB_OUTPUT
           echo "time=07:00" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
+          echo "emoji=🌅" >> $GITHUB_OUTPUT
         elif [ "$hour_utc" == "00" ]; then
           echo "type=morning" >> $GITHUB_OUTPUT
           echo "time=08:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
+          echo "emoji=🌅" >> $GITHUB_OUTPUT
         elif [ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "30" ]; then
           echo "type=evening" >> $GITHUB_OUTPUT
           echo "time=21:30" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
+          echo "emoji=🌙" >> $GITHUB_OUTPUT
         else
           echo "type=evening" >> $GITHUB_OUTPUT
           echo "time=22:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
+          echo "emoji=🌙" >> $GITHUB_OUTPUT
         fi
     
     - name: Download previous artifact
@@ -58,6 +62,7 @@ jobs:
       continue-on-error: true
     
     - name: Run reminder script
+      id: reminder
       env:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         DATABASE_ID: ${{ secrets.DATABASE_ID }}
@@ -81,6 +86,12 @@ jobs:
         echo "=== 开始执行脚本 ==="
         python -u src/main.py
         echo "=== 脚本执行完成 ==="
+        
+        # 如果是数据准备阶段，读取任务数量
+        if [ "$ACTION_TYPE" == "prepare" ] && [ -f "./data/task_data.json" ]; then
+          TASK_COUNT=$(python -c "import json; f=open('./data/task_data.json'); data=json.load(f); print(data['tasks_count']); f.close()")
+          echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
+        fi
     
     - name: Upload artifact
       if: steps.action-type.outputs.action == 'prepare'
@@ -91,14 +102,16 @@ jobs:
         retention-days: 1
         compression-level: 9
     
-    - name: Create commit comment
-      if: ${{ steps.action-type.outputs.type == 'evening' && steps.action-type.outputs.action == 'send' }}
+    - name: Create execution record
       uses: peter-evans/commit-comment@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
-          🌙 晚间任务提醒已触发
+          ${{ steps.action-type.outputs.emoji }} ${{ steps.action-type.outputs.type == 'morning' && '早间' || '晚间' }}任务${{ steps.action-type.outputs.action == 'prepare' && '准备' || '发送' }}
           
           执行时间: ${{ steps.action-type.outputs.time }}
           任务类型: ${{ steps.action-type.outputs.type }}
           操作类型: ${{ steps.action-type.outputs.action }}
+          ${{ steps.action-type.outputs.action == 'prepare' && format('任务数量: {0}', steps.reminder.outputs.task_count) || '' }}
+          
+          运行时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
