@@ -699,9 +699,11 @@ def main():
         
         is_done = os.environ.get('REMINDER_TYPE') == 'daily_done'
         action_type = os.environ.get('ACTION_TYPE', 'send')
+        send_time = os.environ.get('SEND_TIME', '08:00')
         
         if action_type == 'prepare':
-            # 准备数据模式
+            # 准备数据模式，只获取和保存数据，不发送消息
+            print(f"准备{'已完成' if is_done else '待办'}任务数据...")
             if prepare_task_data(is_done):
                 print("数据准备完成")
                 return
@@ -709,6 +711,11 @@ def main():
                 raise Exception("数据准备失败")
         else:
             # 发送模式
+            # 只在指定的发送时间点发送消息
+            if send_time not in ['08:00', '22:00']:
+                print(f"当前时间 {send_time} 不是指定的发送时间（08:00 或 22:00），跳过发送")
+                return
+                
             print(f"开始发送{'已完成' if is_done else '待办'}任务消息...")
             
             # 尝试发送缓存的消息

@@ -70,37 +70,40 @@ jobs:
         
         echo "Current UTC time: ${hour_utc}:${minute_utc}"
         
-        if [ "$hour_utc" == "23" ] && [ "$minute_utc" == "00" ]; then
-          # UTC 23:00 = 北京时间 07:00 (待办任务准备)
-          echo "type=daily_todo" >> $GITHUB_OUTPUT
-          echo "time=07:00" >> $GITHUB_OUTPUT
-          echo "action=prepare" >> $GITHUB_OUTPUT
-          echo "emoji=📋" >> $GITHUB_OUTPUT
-        elif [ "$hour_utc" == "00" ] && [ "$minute_utc" == "00" ]; then
-          # UTC 00:00 = 北京时间 08:00 (待办任务发送)
-          echo "type=daily_todo" >> $GITHUB_OUTPUT
-          echo "time=08:00" >> $GITHUB_OUTPUT
-          echo "action=send" >> $GITHUB_OUTPUT
-          echo "emoji=📋" >> $GITHUB_OUTPUT
-        elif [ "$hour_utc" == "13" ] && [ "$minute_utc" == "30" ]; then
-          # UTC 13:30 = 北京时间 21:30 (完成任务准备)
-          echo "type=daily_done" >> $GITHUB_OUTPUT
-          echo "time=21:30" >> $GITHUB_OUTPUT
-          echo "action=prepare" >> $GITHUB_OUTPUT
-          echo "emoji=✅" >> $GITHUB_OUTPUT
-        elif [ "$hour_utc" == "14" ] && [ "$minute_utc" == "00" ]; then
-          # UTC 14:00 = 北京时间 22:00 (完成任务发送)
-          echo "type=daily_done" >> $GITHUB_OUTPUT
-          echo "time=22:00" >> $GITHUB_OUTPUT
-          echo "action=send" >> $GITHUB_OUTPUT
-          echo "emoji=✅" >> $GITHUB_OUTPUT
-        else
-          echo "Current time (${hour_utc}:${minute_utc} UTC) doesn't match any scheduled action"
-          echo "type=unknown" >> $GITHUB_OUTPUT
-          echo "time=unknown" >> $GITHUB_OUTPUT
-          echo "action=unknown" >> $GITHUB_OUTPUT
-          echo "emoji=❓" >> $GITHUB_OUTPUT
-        fi
+        # 根据 UTC 时间判断任务类型和操作
+        case "${hour_utc}:${minute_utc}" in
+          "23:00")  # UTC 23:00 = 北京时间 07:00
+            echo "type=daily_todo" >> $GITHUB_OUTPUT
+            echo "time=07:00" >> $GITHUB_OUTPUT
+            echo "action=prepare" >> $GITHUB_OUTPUT
+            echo "emoji=📋" >> $GITHUB_OUTPUT
+            ;;
+          "00:00")  # UTC 00:00 = 北京时间 08:00
+            echo "type=daily_todo" >> $GITHUB_OUTPUT
+            echo "time=08:00" >> $GITHUB_OUTPUT
+            echo "action=send" >> $GITHUB_OUTPUT
+            echo "emoji=📋" >> $GITHUB_OUTPUT
+            ;;
+          "13:30")  # UTC 13:30 = 北京时间 21:30
+            echo "type=daily_done" >> $GITHUB_OUTPUT
+            echo "time=21:30" >> $GITHUB_OUTPUT
+            echo "action=prepare" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+            ;;
+          "14:00")  # UTC 14:00 = 北京时间 22:00
+            echo "type=daily_done" >> $GITHUB_OUTPUT
+            echo "time=22:00" >> $GITHUB_OUTPUT
+            echo "action=send" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "Current time (${hour_utc}:${minute_utc} UTC) doesn't match any scheduled action"
+            echo "type=unknown" >> $GITHUB_OUTPUT
+            echo "time=unknown" >> $GITHUB_OUTPUT
+            echo "action=unknown" >> $GITHUB_OUTPUT
+            echo "emoji=❓" >> $GITHUB_OUTPUT
+            ;;
+        esac
     
     - name: Download previous artifact
       if: steps.action-type.outputs.action == 'send'
