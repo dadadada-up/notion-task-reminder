@@ -397,18 +397,36 @@ def format_evening_message(tasks):
         today = datetime.now(beijing_tz).strftime("%Y-%m-%d")
         today_tasks = []
         
+        print(f"\n=== 开始处理今日已完成任务 ===")
+        print(f"今天日期（北京时间）: {today}")
+        print(f"总任务数: {len(tasks.get('results', []))}")
+        
         # 过滤今天完成的任务
         for task in tasks.get('results', []):
-            # 将 UTC 时间转换为北京时间
-            last_edited_utc = datetime.fromisoformat(task.get('last_edited_time', '').replace('Z', '+00:00'))
-            last_edited_beijing = last_edited_utc.astimezone(beijing_tz)
-            last_edited_date = last_edited_beijing.strftime("%Y-%m-%d")
-            
-            if last_edited_date == today:
-                today_tasks.append(task)
-                print(f"找到今天完成的任务: {task.get('properties', {}).get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')}")
-            else:
-                print(f"跳过非今天完成的任务: {task.get('properties', {}).get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')} (完成时间: {last_edited_date})")
+            try:
+                # 获取任务名称用于日志
+                task_name = task.get('properties', {}).get('任务名称', {}).get('title', [{}])[0].get('plain_text', '未命名任务')
+                
+                # 将 UTC 时间转换为北京时间
+                last_edited_time = task.get('last_edited_time', '')
+                if not last_edited_time:
+                    print(f"跳过任务 '{task_name}': 缺少编辑时间")
+                    continue
+                    
+                last_edited_utc = datetime.fromisoformat(last_edited_time.replace('Z', '+00:00'))
+                last_edited_beijing = last_edited_utc.astimezone(beijing_tz)
+                last_edited_date = last_edited_beijing.strftime("%Y-%m-%d")
+                
+                if last_edited_date == today:
+                    today_tasks.append(task)
+                    print(f"✅ 找到今天完成的任务: {task_name} (完成时间: {last_edited_beijing.strftime('%Y-%m-%d %H:%M:%S')})")
+                else:
+                    print(f"❌ 跳过非今天完成的任务: {task_name} (完成时间: {last_edited_date})")
+            except Exception as e:
+                print(f"处理任务时出错: {str(e)}")
+                continue
+        
+        print(f"今日完成任务数: {len(today_tasks)}/{len(tasks.get('results', []))}")
         
         if not today_tasks:
             return "✅ 今日完成 (0/0)\n\n还没有完成任何任务哦！加油！"
@@ -469,6 +487,8 @@ def format_evening_message(tasks):
         
     except Exception as e:
         print(f"格式化消息时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return "格式化消息时出错，请检查日志。"
 
 def send_to_wechat(message):
@@ -647,29 +667,44 @@ def prepare_task_data(is_done=False):
     return True
 
 def send_cached_message():
-    """发送已缓存的消息"""
+    """发送已缓存的消息
+    返回值:
+    - True: 发送成功
+    - False: 发送失败
+    - None: 缓存文件不存在
+    """
     data_file = Path("./data/task_data.json")
     
     try:
+        # 检查文件是否存在
+        if not data_file.exists():
+            print("未找到缓存数据文件")
+            return None
+            
         # 读取缓存数据
         with open(data_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         
-        message = data["message"]
-        tasks_count = data["tasks_count"]
+        message = data.get("message")
+        tasks_count = data.get("tasks_count", 0)
+        task_type = data.get("type", "unknown")
         
-        print(f"从缓存读取到任务数据，共 {tasks_count} 条任务")
+        if not message or not message.strip():
+            print("缓存消息为空，无法发送")
+            return False
+        
+        print(f"从缓存读取到任务数据，类型: {task_type}，共 {tasks_count} 条任务")
         
         # 发送消息
         if send_message(message):
-            print("消息发送成功")
+            print("缓存消息发送成功")
             return True
         else:
-            print("消息发送失败，尝试重新获取数据")
+            print("缓存消息发送失败")
             return False
             
-    except FileNotFoundError:
-        print("未找到缓存数据文件")
+    except json.JSONDecodeError:
+        print("缓存数据格式错误，无法解析")
         return False
     except Exception as e:
         print(f"读取缓存数据出错: {str(e)}")
@@ -701,27 +736,46 @@ def main():
         action_type = os.environ.get('ACTION_TYPE', 'send')
         send_time = os.environ.get('SEND_TIME', '08:00')
         
+        # 任务类型和操作类型的日志
+        task_type_desc = "已完成任务" if is_done else "待办任务"
+        action_desc = "准备" if action_type == 'prepare' else "发送"
+        print(f"\n=== 开始{action_desc}{task_type_desc} ===")
+        
         if action_type == 'prepare':
             # 准备数据模式，只获取和保存数据，不发送消息
-            print(f"准备{'已完成' if is_done else '待办'}任务数据...")
+            print(f"准备{task_type_desc}数据...")
             if prepare_task_data(is_done):
-                print("数据准备完成")
+                print(f"{task_type_desc}数据准备完成")
                 return
             else:
-                raise Exception("数据准备失败")
+                raise Exception(f"{task_type_desc}数据准备失败")
         else:
             # 发送模式
-            # 只在指定的发送时间点发送消息
+            # 检查是否是允许的发送时间
+            valid_send_times = {
+                'daily_todo': '08:00',
+                'daily_done': '22:00'
+            }
+            expected_time = valid_send_times.get(os.environ.get('REMINDER_TYPE', ''), None)
+            
+            if expected_time and send_time != expected_time:
+                print(f"警告: 当前设置的发送时间 {send_time} 与任务类型 {os.environ.get('REMINDER_TYPE')} 的预期时间 {expected_time} 不匹配")
+            
             if send_time not in ['08:00', '22:00']:
                 print(f"当前时间 {send_time} 不是指定的发送时间（08:00 或 22:00），跳过发送")
                 return
                 
-            print(f"开始发送{'已完成' if is_done else '待办'}任务消息...")
+            print(f"开始发送{task_type_desc}消息...")
             
             # 尝试发送缓存的消息
-            if send_cached_message():
+            cache_result = send_cached_message()
+            if cache_result:
                 print("缓存消息发送成功")
                 return
+            elif cache_result is None:  # 缓存文件不存在
+                print("未找到缓存数据，尝试实时获取数据")
+            else:  # 发送失败
+                print("缓存消息发送失败，尝试实时获取数据")
                 
             # 如果发送缓存消息失败，实时获取并发送
             print("尝试实时获取数据并发送...")
@@ -731,16 +785,20 @@ def main():
                 message = format_evening_message(tasks) if is_done else format_message(tasks)
                 
                 if not message or not message.strip():
-                    message = "生成任务消息时出错，请检查日志。"
+                    message = f"生成{task_type_desc}消息时出错，请检查日志。"
                 
                 if send_message(message):
                     print("实时消息发送成功")
                     return
-                    
-            raise Exception("消息发送失败")
+                else:
+                    raise Exception(f"{task_type_desc}消息发送失败")
+            else:
+                raise Exception(f"获取{task_type_desc}数据失败")
             
     except Exception as e:
         print(f"运行出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise
 
 if __name__ == "__main__":

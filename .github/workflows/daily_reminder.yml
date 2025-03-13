@@ -70,33 +70,37 @@ jobs:
         
         echo "Current UTC time: ${hour_utc}:${minute_utc}"
         
-        # 精确匹配四个时间点
-        if [ "$hour_utc" == "23" ] && [ "$minute_utc" == "00" ]; then
-          # UTC 23:00 = 北京时间 07:00 (待办任务准备)
+        # 使用时间范围判断，增加容错性
+        if [ "$hour_utc" == "23" ] && [ "$minute_utc" -ge "00" ] && [ "$minute_utc" -lt "15" ]; then
+          # UTC 23:00-23:14 = 北京时间 07:00-07:14 (待办任务准备)
           echo "type=daily_todo" >> $GITHUB_OUTPUT
           echo "time=07:00" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
           echo "emoji=📋" >> $GITHUB_OUTPUT
-        elif [ "$hour_utc" == "00" ] && [ "$minute_utc" == "00" ]; then
-          # UTC 00:00 = 北京时间 08:00 (待办任务发送)
+          echo "Executing morning task preparation (UTC 23:00-23:14)"
+        elif [ "$hour_utc" == "00" ] && [ "$minute_utc" -ge "00" ] && [ "$minute_utc" -lt "15" ]; then
+          # UTC 00:00-00:14 = 北京时间 08:00-08:14 (待办任务发送)
           echo "type=daily_todo" >> $GITHUB_OUTPUT
           echo "time=08:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
           echo "emoji=📋" >> $GITHUB_OUTPUT
-        elif [ "$hour_utc" == "13" ] && [ "$minute_utc" == "30" ]; then
-          # UTC 13:30 = 北京时间 21:30 (完成任务准备)
+          echo "Executing morning task sending (UTC 00:00-00:14)"
+        elif [ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "30" ] && [ "$minute_utc" -lt "45" ]; then
+          # UTC 13:30-13:44 = 北京时间 21:30-21:44 (完成任务准备)
           echo "type=daily_done" >> $GITHUB_OUTPUT
           echo "time=21:30" >> $GITHUB_OUTPUT
           echo "action=prepare" >> $GITHUB_OUTPUT
           echo "emoji=✅" >> $GITHUB_OUTPUT
-        elif [ "$hour_utc" == "14" ] && [ "$minute_utc" == "00" ]; then
-          # UTC 14:00 = 北京时间 22:00 (完成任务发送)
+          echo "Executing evening task preparation (UTC 13:30-13:44)"
+        elif [ "$hour_utc" == "14" ] && [ "$minute_utc" -ge "00" ] && [ "$minute_utc" -lt "15" ]; then
+          # UTC 14:00-14:14 = 北京时间 22:00-22:14 (完成任务发送)
           echo "type=daily_done" >> $GITHUB_OUTPUT
           echo "time=22:00" >> $GITHUB_OUTPUT
           echo "action=send" >> $GITHUB_OUTPUT
           echo "emoji=✅" >> $GITHUB_OUTPUT
+          echo "Executing evening task sending (UTC 14:00-14:14)"
         else
-          echo "Current time (${hour_utc}:${minute_utc} UTC) doesn't match any scheduled action"
+          echo "Current time (${hour_utc}:${minute_utc} UTC) doesn't match any scheduled action window"
           echo "type=unknown" >> $GITHUB_OUTPUT
           echo "time=unknown" >> $GITHUB_OUTPUT
           echo "action=unknown" >> $GITHUB_OUTPUT
