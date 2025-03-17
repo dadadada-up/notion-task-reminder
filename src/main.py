@@ -9,6 +9,7 @@ import base64
 import urllib.parse
 import json
 from pathlib import Path
+import random
 
 # 修改配置信息部分
 NOTION_TOKEN = os.environ.get('NOTION_TOKEN', "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")
@@ -44,6 +45,19 @@ DEBUG_MODE = os.environ.get('DEBUG_MODE', '').lower() in ['true', '1', 'yes']
 def debug_print(*args, **kwargs):
     if DEBUG_MODE:
         print("[DEBUG]", *args, **kwargs)
+
+def get_task_name(task):
+    """从任务对象中提取任务名称"""
+    if not task or not task.get('properties'):
+        return "未知任务"
+    
+    properties = task.get('properties', {})
+    title_property = properties.get('名称', {})  # 使用实际的字段名称
+    title = title_property.get('title', [])
+    
+    if title and len(title) > 0:
+        return title[0].get('plain_text', '未知任务')
+    return "未知任务"
 
 def get_notion_tasks(is_done=False):
     """
@@ -98,13 +112,7 @@ def get_notion_tasks(is_done=False):
         
         # 构建请求体
         payload = {
-            "filter": filter_conditions,
-            "sorts": [
-                {
-                    "property": "优先级",
-                    "direction": "ascending"
-                }
-            ]
+            "filter": filter_conditions
         }
         
         debug_print(f"API 请求 URL: {url}")
@@ -124,6 +132,25 @@ def get_notion_tasks(is_done=False):
         data = response.json()
         
         debug_print(f"获取到 {len(data.get('results', []))} 个任务")
+        
+        # 添加更多调试信息
+        if DEBUG_MODE:
+            if data.get('results'):
+                # 打印第一个任务的详细信息，帮助了解数据库结构
+                first_task = data.get('results')[0]
+                debug_print(f"第一个任务 ID: {first_task.get('id')}")
+                debug_print(f"第一个任务属性: {json.dumps(first_task.get('properties', {}), ensure_ascii=False, indent=2)}")
+                
+                # 打印所有状态值
+                status_values = set()
+                for task in data.get('results', []):
+                    properties = task.get('properties', {})
+                    status_obj = properties.get('状态', {})
+                    status = status_obj.get('status', {}).get('name', 'unknown') if status_obj else 'unknown'
+                    status_values.add(status)
+                debug_print(f"数据库中的状态值: {status_values}")
+            else:
+                debug_print("没有获取到任何任务")
         
         if DEBUG_MODE and data.get('results'):
             for i, task in enumerate(data.get('results', [])):
@@ -160,7 +187,7 @@ def format_message(tasks_data):
                 properties = result.get('properties', {})
                 
                 # 获取任务名称
-                title = properties.get('title', {}).get('title', [])
+                title = properties.get('名称', {}).get('title', [])
                 name = title[0].get('plain_text', '未命名任务') if title else '未命名任务'
                 
                 # 获取任务状态
@@ -214,7 +241,7 @@ def format_message(tasks_data):
                 
                 # 按优先级和状态排序
                 priority_order = {'P0 重要紧急': 0, 'P1 重要不紧急': 1, 'P2 紧急不重要': 2, 'P3 不重要不紧急': 3}
-                status_order = {'inbox': 0, 'pedding': 1, 'doing': 2, 'done': 3}
+                status_order = {'收集箱': 0, '待处理': 1, '进行中': 2, '完成': 3}  # 修改为数据库中的实际状态值
                 
                 # 对任务进行排序
                 try:
@@ -290,7 +317,7 @@ def format_evening_message(tasks):
             try:
                 # 获取任务名称
                 properties = task.get('properties', {})
-                title = properties.get('title', {}).get('title', [])
+                title = properties.get('名称', {}).get('title', [])
                 name = title[0].get('plain_text', '未命名任务') if title else '未命名任务'
                 
                 # 将 UTC 时间转换为北京时间
@@ -335,7 +362,7 @@ def format_evening_message(tasks):
                 properties = task.get('properties', {})
                 
                 # 获取任务名称
-                title = properties.get('title', {}).get('title', [])
+                title = properties.get('名称', {}).get('title', [])
                 name = title[0].get('plain_text', '未命名任务') if title else '未命名任务'
                 
                 # 获取任务类型
@@ -389,6 +416,17 @@ def format_evening_message(tasks):
         traceback.print_exc()
         return "✅ 今日完成 (0/0)\n\n格式化消息时出错，请检查日志。"
 
+def add_unique_suffix(message):
+    """
+    为消息添加唯一后缀，避免被识别为重复内容
+    """
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    random_str = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=6))
+    
+    # 添加一个不可见的唯一标识符
+    unique_suffix = f"\n\n<!-- {timestamp}-{random_str} -->"
+    return message + unique_suffix
+
 def send_to_wechat(title, content):
     """
     使用 PushPlus 发送微信消息
@@ -398,10 +436,10 @@ def send_to_wechat(title, content):
             print("PUSHPLUS_TOKEN 未设置或无效")
             return False
             
-        debug_print(f"准备发送 PushPlus 消息")
-        debug_print(f"标题: {title}")
-        debug_print(f"内容长度: {len(content)}")
-        debug_print(f"内容预览: {content[:100]}...")
+        print(f"准备发送 PushPlus 消息")
+        print(f"标题: {title}")
+        print(f"内容长度: {len(content)}")
+        print(f"内容预览: {content[:50]}...")
         
         url = "http://www.pushplus.plus/send"
         data = {
@@ -411,41 +449,60 @@ def send_to_wechat(title, content):
             "template": "markdown"
         }
         
-        debug_print(f"请求 URL: {url}")
-        debug_print(f"Token 长度: {len(PUSHPLUS_TOKEN)}")
+        print(f"请求 URL: {url}")
+        print(f"Token 长度: {len(PUSHPLUS_TOKEN)}")
         
         # 添加重试机制
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.post(url, json=data, timeout=10)
-                debug_print(f"PushPlus 响应状态码: {response.status_code}")
-                debug_print(f"PushPlus 响应内容: {response.text}")
+                print(f"PushPlus 发送尝试 {attempt+1}/{max_retries}")
+                response = requests.post(url, json=data, timeout=15)
+                print(f"PushPlus 响应状态码: {response.status_code}")
+                
+                try:
+                    response_text = response.text
+                    print(f"PushPlus 响应内容: {response_text}")
+                    result = response.json()
+                except Exception as e:
+                    print(f"解析 PushPlus 响应时出错: {str(e)}")
+                    print(f"原始响应: {response.text[:200]}")
+                    result = {"code": 999, "msg": "响应解析失败"}
                 
                 if response.status_code == 200:
-                    result = response.json()
                     if result.get("code") == 200:
                         print("PushPlus 消息发送成功")
                         return True
                     else:
-                        print(f"PushPlus 消息发送失败: {result.get('msg', '未知错误')}")
+                        error_msg = result.get('msg', '未知错误')
+                        print(f"PushPlus 消息发送失败: {error_msg}")
+                        
+                        # 如果是重复内容错误，修改内容再试
+                        if "重复" in error_msg or "频率" in error_msg:
+                            print("检测到重复内容或频率限制，修改内容后重试")
+                            # 添加更多随机内容
+                            random_suffix = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=10))
+                            data["content"] = content + f"\n\n<!-- {random_suffix} -->\n\n时间戳: {datetime.now().timestamp()}"
+                            data["title"] = title + f" [{random_suffix[:4]}]"
                 else:
                     print(f"PushPlus 请求失败，状态码: {response.status_code}")
                 
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # 指数退避
+                    wait_time = (2 ** attempt) * 10  # 更长的等待时间
                     print(f"等待 {wait_time} 秒后重试...")
                     time.sleep(wait_time)
             except Exception as e:
                 print(f"PushPlus 请求异常: {str(e)}")
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt
+                    wait_time = (2 ** attempt) * 10
                     print(f"等待 {wait_time} 秒后重试...")
                     time.sleep(wait_time)
         
         return False
     except Exception as e:
         print(f"发送 PushPlus 消息时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def send_to_dingtalk(message):
@@ -498,13 +555,13 @@ def send_to_wxpusher(title, content):
                     print(f"WxPusher 请求失败，状态码: {response.status_code}")
                 
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # 指数退避
+                    wait_time = (2 ** attempt) * 5  # 指数退避，并增加基础等待时间
                     print(f"等待 {wait_time} 秒后重试...")
                     time.sleep(wait_time)
             except Exception as e:
                 print(f"WxPusher 请求异常: {str(e)}")
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt
+                    wait_time = (2 ** attempt) * 5
                     print(f"等待 {wait_time} 秒后重试...")
                     time.sleep(wait_time)
         
@@ -520,45 +577,72 @@ def send_message(message):
     if not message or not message.strip():
         print("错误: 消息内容为空，无法发送")
         return False
+    
+    try:    
+        # 添加唯一后缀，避免被识别为重复内容
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        random_str = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
         
-    debug_print(f"准备发送消息，长度: {len(message)}")
-    debug_print(f"消息内容预览: {message[:100]}...")
-    
-    # 提取标题（第一行）
-    lines = message.strip().split('\n')
-    title = lines[0].strip() if lines else "任务提醒"
-    
-    # 尝试所有可用的渠道发送消息
-    success = False
-    
-    # 尝试通过 PushPlus 发送
-    if PUSHPLUS_TOKEN:
-        debug_print("尝试通过 PushPlus 发送消息...")
-        if send_to_wechat(title, message):
-            success = True
-            debug_print("PushPlus 发送成功")
+        # 添加一个不可见的唯一标识符和随机内容变化
+        unique_suffix = f"\n\n<!-- {timestamp}-{random_str} -->\n\n"
+        unique_message = message + unique_suffix + f"消息ID: {random_str[:4]}-{timestamp[-6:]}"
+        
+        debug_print(f"准备发送消息，长度: {len(unique_message)}")
+        debug_print(f"消息内容预览: {unique_message[:100]}...")
+        
+        # 提取标题（第一行）并添加随机字符
+        lines = unique_message.strip().split('\n')
+        base_title = lines[0].strip() if lines else "任务提醒"
+        title = f"{base_title} [{random_str[:4]}]"
+        
+        print(f"消息标题: {title}")
+        print(f"消息长度: {len(unique_message)} 字符")
+        
+        # 尝试所有可用的渠道发送消息
+        success = False
+        
+        # 尝试通过 PushPlus 发送
+        if PUSHPLUS_TOKEN:
+            print("尝试通过 PushPlus 发送消息...")
+            try:
+                if send_to_wechat(title, unique_message):
+                    success = True
+                    print("PushPlus 发送成功")
+                else:
+                    print("PushPlus 发送失败，尝试其他渠道")
+            except Exception as e:
+                print(f"PushPlus 发送过程中出错: {str(e)}")
         else:
-            debug_print("PushPlus 发送失败")
-    else:
-        debug_print("PushPlus 未配置，跳过")
-    
-    # 尝试通过 WxPusher 发送
-    if WXPUSHER_TOKEN and WXPUSHER_UID:
-        debug_print("尝试通过 WxPusher 发送消息...")
-        if send_to_wxpusher(title, message):
-            success = True
-            debug_print("WxPusher 发送成功")
-        else:
-            debug_print("WxPusher 发送失败")
-    else:
-        debug_print("WxPusher 未配置，跳过")
-    
-    # 如果所有渠道都失败，返回失败
-    if not success:
-        print("所有消息渠道发送失败")
+            print("PushPlus 未配置，跳过")
+        
+        # 如果 PushPlus 失败，等待一段时间再尝试 WxPusher
+        if not success and WXPUSHER_TOKEN and WXPUSHER_UID:
+            print("等待 10 秒后尝试 WxPusher...")
+            time.sleep(10)
+            
+            print("尝试通过 WxPusher 发送消息...")
+            try:
+                if send_to_wxpusher(title, unique_message):
+                    success = True
+                    print("WxPusher 发送成功")
+                else:
+                    print("WxPusher 发送失败")
+            except Exception as e:
+                print(f"WxPusher 发送过程中出错: {str(e)}")
+        elif not WXPUSHER_TOKEN or not WXPUSHER_UID:
+            print("WxPusher 未配置，跳过")
+        
+        # 如果所有渠道都失败，返回失败
+        if not success:
+            print("所有消息渠道发送失败")
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"发送消息过程中出现未处理的异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
-    
-    return True
 
 def wait_until_send_time():
     # 如果是 GitHub Actions 环境，直接发送
@@ -742,7 +826,7 @@ def main():
         # 检查环境变量
         print("检查环境变量...")
         print(f"PUSHPLUS_TOKEN: {PUSHPLUS_TOKEN[:8]}*** (长度: {len(PUSHPLUS_TOKEN)})")
-        print(f"WXPUSHER_TOKEN: {WXPUSHER_TOKEN[:8]}*** (长度: {len(WXPUSHER_TOKEN)})")
+        print(f"WXPUSHER_TOKEN: {WXPUSHER_TOKEN[:8] if len(WXPUSHER_TOKEN) >= 8 else '***'} (长度: {len(WXPUSHER_TOKEN)})")
         print(f"WXPUSHER_UID: {WXPUSHER_UID}")
         print(f"REMINDER_TYPE: {os.environ.get('REMINDER_TYPE', '未设置')}")
         print(f"NOTION_TOKEN: {'已设置' if NOTION_TOKEN else '未设置'}")
@@ -815,22 +899,68 @@ def main():
                 
             # 如果发送缓存消息失败，实时获取并发送
             print("尝试实时获取数据并发送...")
-            try:
-                tasks = get_notion_tasks(is_done)
-                
-                # 即使没有获取到任务，也生成一个默认消息
-                if not tasks or not tasks.get('results'):
-                    print("未获取到任务数据，使用默认消息")
-                    default_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{'已完成' if is_done else '待办'}任务数据。"
-                    if send_message(default_message):
-                        print("默认消息发送成功")
-                        return
-                    else:
-                        raise Exception(f"默认{task_type_desc}消息发送失败")
-                
-                print(f"获取到 {len(tasks.get('results', []))} 个任务")
-                
+            
+            # 多次尝试获取数据
+            max_retries = 3
+            tasks = None
+            
+            for attempt in range(max_retries):
                 try:
+                    print(f"获取数据尝试 {attempt+1}/{max_retries}")
+                    tasks = get_notion_tasks(is_done)
+                    
+                    if tasks and tasks.get('results'):
+                        print(f"成功获取到 {len(tasks.get('results', []))} 个任务")
+                        break
+                    else:
+                        print("未获取到任务数据，将重试")
+                        
+                    if attempt < max_retries - 1:
+                        wait_time = 5 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+                except Exception as e:
+                    print(f"获取数据时出错: {str(e)}")
+                    if attempt < max_retries - 1:
+                        wait_time = 5 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+            
+            # 即使没有获取到任务，也生成一个默认消息
+            if not tasks or not tasks.get('results'):
+                print("未获取到任务数据，使用默认消息")
+                default_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{'已完成' if is_done else '待办'}任务数据。\n\n可能的原因：\n1. Notion API 连接问题\n2. 数据库中没有符合条件的任务\n3. 数据库结构可能已更改"
+                
+                # 多次尝试发送默认消息
+                for attempt in range(3):
+                    try:
+                        print(f"发送默认消息尝试 {attempt+1}/3")
+                        if send_message(default_message):
+                            print("默认消息发送成功")
+                            return
+                        else:
+                            print(f"默认消息发送失败，尝试 {attempt+1}/3")
+                        
+                        if attempt < 2:
+                            wait_time = 15 * (attempt + 1)
+                            print(f"等待 {wait_time} 秒后重试...")
+                            time.sleep(wait_time)
+                    except Exception as e:
+                        print(f"发送默认消息时出错: {str(e)}")
+                        if attempt < 2:
+                            wait_time = 15 * (attempt + 1)
+                            print(f"等待 {wait_time} 秒后重试...")
+                            time.sleep(wait_time)
+                
+                # 如果所有尝试都失败，抛出异常
+                raise Exception(f"默认{task_type_desc}消息发送失败")
+            
+            print(f"获取到 {len(tasks.get('results', []))} 个任务")
+            
+            # 多次尝试格式化和发送消息
+            for attempt in range(3):
+                try:
+                    print(f"格式化和发送消息尝试 {attempt+1}/3")
                     message = format_evening_message(tasks) if is_done else format_message(tasks)
                     
                     if not message or not message.strip():
@@ -838,28 +968,39 @@ def main():
                         message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{'已完成' if is_done else '待办'}任务数据。"
                     
                     if send_message(message):
-                        print("实时消息发送成功")
+                        print("消息发送成功")
                         return
                     else:
-                        raise Exception(f"{task_type_desc}消息发送失败")
+                        print(f"消息发送失败，尝试 {attempt+1}/3")
+                    
+                    if attempt < 2:
+                        wait_time = 20 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
                 except Exception as e:
                     print(f"格式化或发送消息时出错: {str(e)}")
-                    # 尝试发送简单消息
-                    simple_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n获取到 {len(tasks.get('results', []))} 个任务，但格式化失败。"
-                    if send_message(simple_message):
-                        print("简单消息发送成功")
-                        return
-                    else:
-                        raise Exception(f"简单{task_type_desc}消息发送失败")
-            except Exception as e:
-                print(f"获取或处理任务数据时出错: {str(e)}")
-                # 发送错误通知
-                error_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n获取任务数据时出错，请检查系统日志。"
-                if send_message(error_message):
-                    print("错误通知消息发送成功")
-                    return
-                else:
-                    raise Exception(f"错误通知消息发送失败")
+                    import traceback
+                    traceback.print_exc()
+                    
+                    if attempt < 2:
+                        wait_time = 20 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+                    
+                    # 最后一次尝试，使用简单消息
+                    if attempt == 2:
+                        try:
+                            print("尝试发送简单消息...")
+                            task_count = len(tasks.get('results', []))
+                            simple_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n获取到 {task_count} 个任务，但格式化失败。\n\n错误信息: {str(e)}"
+                            if send_message(simple_message):
+                                print("简单消息发送成功")
+                                return
+                        except Exception as e2:
+                            print(f"发送简单消息也失败了: {str(e2)}")
+            
+            # 如果所有尝试都失败，抛出异常
+            raise Exception(f"{task_type_desc}消息发送失败")
             
     except Exception as e:
         print(f"运行出错: {str(e)}")
@@ -869,13 +1010,35 @@ def main():
         # 尝试发送错误通知
         try:
             is_done = os.environ.get('REMINDER_TYPE') == 'daily_done'
-            error_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n系统运行出错，请检查日志。错误: {str(e)}"
-            send_message(error_message)
-            print("错误通知已发送")
-        except:
+            error_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n系统运行出错，请检查日志。\n\n错误信息: {str(e)}\n\n时间戳: {datetime.now().timestamp()}"
+            
+            # 多次尝试发送错误通知
+            for attempt in range(3):
+                try:
+                    print(f"发送错误通知尝试 {attempt+1}/3")
+                    if send_message(error_message):
+                        print("错误通知已发送")
+                        break
+                    
+                    if attempt < 2:
+                        wait_time = 15 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+                except Exception as e2:
+                    print(f"发送错误通知时出错: {str(e2)}")
+                    if attempt < 2:
+                        wait_time = 15 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+        except Exception as e2:
+            print(f"发送错误通知过程中出错: {str(e2)}")
             print("发送错误通知也失败了")
         
-        raise
+        # 不再抛出异常，避免脚本崩溃
+        print("尽管出现错误，脚本将正常退出")
+        return 1
+    
+    return 0
 
 if __name__ == "__main__":
     main()
