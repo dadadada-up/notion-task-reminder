@@ -28,11 +28,6 @@ PRIORITY_ORDER = {
     "P3 不重要不紧急": 3
 }
 
-# 添加钉钉配置
-DINGTALK_TOKEN = None  # 禁用钉钉推送
-DINGTALK_SECRET = None
-DINGTALK_WEBHOOK = None
-
 # 获取环境变量
 NOTION_TOKEN = os.environ.get('NOTION_TOKEN')
 DATABASE_ID = os.environ.get('DATABASE_ID')
@@ -570,11 +565,6 @@ def send_to_wechat(title, content):
         import traceback
         traceback.print_exc()
         return False
-
-def send_to_dingtalk(message):
-    """发送消息到钉钉群(已禁用)"""
-    print("\n=== 钉钉推送已禁用 ===")
-    return False
 
 def send_to_wxpusher(title, content):
     """
