@@ -668,145 +668,176 @@ def wait_until_send_time():
 
 def prepare_task_data(is_done=False):
     """
-    准备任务数据并保存到文件
+    准备任务数据并保存到缓存文件
     """
-    try:
-        task_type = "已完成任务" if is_done else "待办任务"
-        print(f"准备{task_type}数据...")
-        debug_print(f"开始获取{task_type}数据")
-        
-        # 确保数据目录存在
-        os.makedirs('./data', exist_ok=True)
-        debug_print("数据目录已确认")
-        
-        # 获取任务数据
-        tasks = get_notion_tasks(is_done)
-        
-        if not tasks:
-            print(f"警告: 未获取到{task_type}数据")
-            # 创建一个空的任务数据结构
-            tasks = {"results": []}
-            debug_print("创建了空的任务数据结构")
-        
-        # 获取任务数量
-        task_count = len(tasks.get('results', []))
-        print(f"获取到 {task_count} 个{task_type}")
-        
-        # 保存到文件
-        file_path = './data/task_data.json'
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(tasks, f, ensure_ascii=False, indent=2)
-        
-        # 验证文件是否成功创建
-        if not os.path.exists(file_path):
-            print(f"错误: 文件 {file_path} 未成功创建")
-            return False
-            
-        # 检查文件大小
-        file_size = os.path.getsize(file_path)
-        if file_size == 0:
-            print(f"错误: 文件 {file_path} 大小为 0")
-            return False
-            
-        debug_print(f"任务数据已保存到 {file_path}，文件大小: {file_size} 字节")
-        
-        # 读取保存的数据进行验证
+    print(f"准备{'已完成' if is_done else '待办'}任务数据...")
+    
+    # 创建数据目录（如果不存在）
+    os.makedirs('./data', exist_ok=True)
+    
+    # 多次尝试获取数据
+    max_retries = 3
+    tasks = None
+    
+    for attempt in range(max_retries):
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                saved_data = json.load(f)
-                saved_count = len(saved_data.get('results', []))
-                debug_print(f"验证: 保存的任务数量为 {saved_count}")
-                if saved_count != task_count:
-                    print(f"警告: 保存的任务数量 ({saved_count}) 与获取的任务数量 ({task_count}) 不一致")
+            print(f"获取数据尝试 {attempt+1}/{max_retries}")
+            tasks = get_notion_tasks(is_done)
+            
+            if tasks and tasks.get('results'):
+                print(f"成功获取到 {len(tasks.get('results', []))} 个任务")
+                break
+            else:
+                print("未获取到任务数据，将重试")
+                
+            if attempt < max_retries - 1:
+                wait_time = 5 * (attempt + 1)
+                print(f"等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
         except Exception as e:
-            print(f"验证保存的数据时出错: {str(e)}")
+            print(f"获取数据时出错: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            if attempt < max_retries - 1:
+                wait_time = 5 * (attempt + 1)
+                print(f"等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
+    
+    # 检查是否成功获取数据
+    if not tasks or not tasks.get('results'):
+        print("所有尝试都失败，未能获取任务数据")
+        return False
+    
+    # 保存数据到缓存文件
+    try:
+        cache_file = './data/task_data.json'
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(tasks, f, ensure_ascii=False, indent=2)
+        print(f"任务数据已保存到缓存文件: {cache_file}")
         
-        print(f"{task_type}数据准备完成")
-        return True
+        # 生成并保存消息
+        try:
+            message = format_evening_message(tasks) if is_done else format_message(tasks)
+            
+            if not message or not message.strip():
+                print("生成的消息为空，使用默认消息")
+                message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{'已完成' if is_done else '待办'}任务数据。"
+            
+            message_file = './data/message.txt'
+            with open(message_file, 'w', encoding='utf-8') as f:
+                f.write(message)
+            print(f"消息已保存到文件: {message_file}")
+            
+            # 保存任务数量信息
+            info = {
+                'task_count': len(tasks.get('results', [])),
+                'is_done': is_done,
+                'timestamp': datetime.now().timestamp(),
+                'message_length': len(message)
+            }
+            info_file = './data/info.json'
+            with open(info_file, 'w', encoding='utf-8') as f:
+                json.dump(info, f, ensure_ascii=False, indent=2)
+            print(f"任务信息已保存到文件: {info_file}")
+            
+            return True
+        except Exception as e:
+            print(f"生成或保存消息时出错: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            # 尝试保存简单消息
+            try:
+                print("尝试保存简单消息...")
+                simple_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n获取到 {len(tasks.get('results', []))} 个任务，但格式化失败。\n\n错误信息: {str(e)}"
+                message_file = './data/message.txt'
+                with open(message_file, 'w', encoding='utf-8') as f:
+                    f.write(simple_message)
+                print(f"简单消息已保存到文件: {message_file}")
+                return True
+            except Exception as e2:
+                print(f"保存简单消息也失败了: {str(e2)}")
+                return False
     except Exception as e:
-        print(f"准备任务数据时出错: {str(e)}")
+        print(f"保存任务数据到缓存文件时出错: {str(e)}")
         import traceback
         traceback.print_exc()
         return False
 
 def send_cached_message():
     """
-    发送缓存的消息
+    从缓存文件中读取消息并发送
+    返回值:
+    - True: 发送成功
+    - False: 发送失败
+    - None: 缓存文件不存在
     """
+    message_file = './data/message.txt'
+    info_file = './data/info.json'
+    
+    # 检查缓存文件是否存在
+    if not os.path.exists(message_file) or not os.path.exists(info_file):
+        print(f"缓存文件不存在: {message_file} 或 {info_file}")
+        return None
+    
     try:
-        file_path = './data/task_data.json'
+        # 读取任务信息
+        with open(info_file, 'r', encoding='utf-8') as f:
+            info = json.load(f)
+            
+        # 检查缓存是否过期（超过1小时）
+        current_time = datetime.now().timestamp()
+        cache_time = info.get('timestamp', 0)
+        cache_age = current_time - cache_time
         
-        # 检查缓存文件是否存在
-        if not os.path.exists(file_path):
-            print(f"缓存文件 {file_path} 不存在")
-            # 检查目录内容
-            if os.path.exists('./data'):
-                print("数据目录内容:")
-                for item in os.listdir('./data'):
-                    print(f" - {item}")
-            else:
-                print("数据目录不存在")
+        if cache_age > 3600:  # 1小时 = 3600秒
+            print(f"缓存已过期，已经过去了 {cache_age:.2f} 秒")
             return None
-        
-        # 检查文件大小
-        file_size = os.path.getsize(file_path)
-        if file_size == 0:
-            print(f"错误: 缓存文件 {file_path} 大小为 0")
-            return False
             
-        debug_print(f"读取缓存文件 {file_path}，文件大小: {file_size} 字节")
+        # 读取消息内容
+        with open(message_file, 'r', encoding='utf-8') as f:
+            message = f.read()
+            
+        if not message or not message.strip():
+            print("缓存的消息内容为空")
+            return None
+            
+        print(f"从缓存读取到消息，长度: {len(message)}")
+        print(f"任务数量: {info.get('task_count', 0)}, 类型: {'已完成' if info.get('is_done', False) else '待办'}")
         
-        # 读取缓存数据
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                tasks = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"解析缓存文件时出错: {str(e)}")
-            # 尝试读取文件内容进行调试
+        # 多次尝试发送消息
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    print(f"缓存文件内容预览: {content[:200]}...")
-            except Exception:
-                print("无法读取缓存文件内容")
-            return False
-        
-        # 检查任务数量
-        task_count = len(tasks.get('results', []))
-        debug_print(f"缓存中的任务数量: {task_count}")
-        
-        # 根据环境变量确定任务类型
-        is_done = os.environ.get('REMINDER_TYPE') == 'daily_done'
-        task_type = "已完成任务" if is_done else "待办任务"
-        
-        # 格式化消息
-        try:
-            message = format_evening_message(tasks) if is_done else format_message(tasks)
-            
-            if not message or not message.strip():
-                print(f"警告: 格式化后的消息为空，使用默认消息")
-                message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{task_type}数据。"
+                print(f"发送缓存消息尝试 {attempt+1}/{max_retries}")
+                if send_message(message):
+                    print("缓存消息发送成功")
+                    return True
+                else:
+                    print(f"缓存消息发送失败，尝试 {attempt+1}/{max_retries}")
                 
-            debug_print(f"格式化后的消息长度: {len(message)}")
-            debug_print(f"消息内容预览: {message[:100]}...")
-            
-            # 发送消息
-            if send_message(message):
-                print(f"缓存的{task_type}消息发送成功")
-                return True
-            else:
-                print(f"缓存的{task_type}消息发送失败")
-                return False
-        except Exception as e:
-            print(f"处理缓存数据时出错: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return False
+                if attempt < max_retries - 1:
+                    wait_time = 15 * (attempt + 1)
+                    print(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+            except Exception as e:
+                print(f"发送缓存消息时出错: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                
+                if attempt < max_retries - 1:
+                    wait_time = 15 * (attempt + 1)
+                    print(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+        
+        print("所有尝试都失败，无法发送缓存消息")
+        return False
     except Exception as e:
-        print(f"发送缓存消息时出错: {str(e)}")
+        print(f"读取或处理缓存消息时出错: {str(e)}")
         import traceback
         traceback.print_exc()
-        return False
+        return None
 
 def main():
     try:
