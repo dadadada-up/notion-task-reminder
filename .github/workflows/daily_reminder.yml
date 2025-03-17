@@ -24,6 +24,27 @@ on:
         options:
           - prepare
           - send
+      force_send:
+        description: '强制发送（忽略时间检查）'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      custom_send_time:
+        description: '自定义发送时间（格式：HH:MM，如 08:00）'
+        required: false
+        default: ''
+        type: string
+      debug_mode:
+        description: '调试模式（显示更多日志）'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   send-reminder:
@@ -45,67 +66,96 @@ jobs:
     - name: Determine action type
       id: action-type
       run: |
-        # 如果是手动触发
-        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-          TASK_TYPE="${{ github.event.inputs.task_type }}"
-          ACTION_TYPE="${{ github.event.inputs.action_type }}"
-          if [ "$TASK_TYPE" == "daily_todo" ]; then
-            TIME=$([ "$ACTION_TYPE" == "prepare" ] && echo "07:00" || echo "08:00")
-            EMOJI="📋"
-          else
-            TIME=$([ "$ACTION_TYPE" == "prepare" ] && echo "21:30" || echo "22:00")
-            EMOJI="✅"
-          fi
-          
-          echo "type=$TASK_TYPE" >> $GITHUB_OUTPUT
-          echo "time=$TIME" >> $GITHUB_OUTPUT
-          echo "action=$ACTION_TYPE" >> $GITHUB_OUTPUT
-          echo "emoji=$EMOJI" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        
-        # 如果是定时触发
+        # 获取当前 UTC 时间
         hour_utc=$(date -u +%H)
         minute_utc=$(date -u +%M)
         
-        echo "Current UTC time: ${hour_utc}:${minute_utc}"
+        echo "当前 UTC 时间: ${hour_utc}:${minute_utc}"
         
-        # 使用时间范围判断，增加容错性
-        if [ "$hour_utc" == "23" ] && [ "$minute_utc" -ge "00" ] && [ "$minute_utc" -lt "15" ]; then
-          # UTC 23:00-23:14 = 北京时间 07:00-07:14 (待办任务准备)
-          echo "type=daily_todo" >> $GITHUB_OUTPUT
-          echo "time=07:00" >> $GITHUB_OUTPUT
-          echo "action=prepare" >> $GITHUB_OUTPUT
-          echo "emoji=📋" >> $GITHUB_OUTPUT
-          echo "Executing morning task preparation (UTC 23:00-23:14)"
-        elif [ "$hour_utc" == "00" ] && [ "$minute_utc" -ge "00" ] && [ "$minute_utc" -lt "15" ]; then
-          # UTC 00:00-00:14 = 北京时间 08:00-08:14 (待办任务发送)
-          echo "type=daily_todo" >> $GITHUB_OUTPUT
-          echo "time=08:00" >> $GITHUB_OUTPUT
-          echo "action=send" >> $GITHUB_OUTPUT
-          echo "emoji=📋" >> $GITHUB_OUTPUT
-          echo "Executing morning task sending (UTC 00:00-00:14)"
-        elif [ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "30" ] && [ "$minute_utc" -lt "45" ]; then
-          # UTC 13:30-13:44 = 北京时间 21:30-21:44 (完成任务准备)
-          echo "type=daily_done" >> $GITHUB_OUTPUT
-          echo "time=21:30" >> $GITHUB_OUTPUT
-          echo "action=prepare" >> $GITHUB_OUTPUT
-          echo "emoji=✅" >> $GITHUB_OUTPUT
-          echo "Executing evening task preparation (UTC 13:30-13:44)"
-        elif [ "$hour_utc" == "14" ] && [ "$minute_utc" -ge "00" ] && [ "$minute_utc" -lt "15" ]; then
-          # UTC 14:00-14:14 = 北京时间 22:00-22:14 (完成任务发送)
-          echo "type=daily_done" >> $GITHUB_OUTPUT
-          echo "time=22:00" >> $GITHUB_OUTPUT
-          echo "action=send" >> $GITHUB_OUTPUT
-          echo "emoji=✅" >> $GITHUB_OUTPUT
-          echo "Executing evening task sending (UTC 14:00-14:14)"
-        else
-          echo "Current time (${hour_utc}:${minute_utc} UTC) doesn't match any scheduled action window"
-          echo "type=unknown" >> $GITHUB_OUTPUT
-          echo "time=unknown" >> $GITHUB_OUTPUT
-          echo "action=unknown" >> $GITHUB_OUTPUT
-          echo "emoji=❓" >> $GITHUB_OUTPUT
+        # 判断是手动触发还是定时触发
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "手动触发工作流"
+          
+          # 使用用户输入的参数
+          task_type="${{ github.event.inputs.task_type }}"
+          action_type="${{ github.event.inputs.action_type }}"
+          
+          # 检查是否有自定义发送时间
+          custom_time="${{ github.event.inputs.custom_send_time }}"
+          
+          # 根据任务类型设置发送时间
+          if [ -n "$custom_time" ]; then
+            # 使用自定义时间
+            send_time="$custom_time"
+            echo "使用自定义发送时间: $send_time"
+          elif [ "$task_type" == "daily_todo" ]; then
+            send_time="08:00"
+          else
+            send_time="22:00"
+          fi
+          
+          # 设置表情
+          if [ "$task_type" == "daily_todo" ]; then
+            emoji="📋"
+          else
+            emoji="✅"
+          fi
+          
+          echo "task_type=${task_type}" >> $GITHUB_OUTPUT
+          echo "action_type=${action_type}" >> $GITHUB_OUTPUT
+          echo "send_time=${send_time}" >> $GITHUB_OUTPUT
+          echo "emoji=${emoji}" >> $GITHUB_OUTPUT
+          
+          exit 0
         fi
+        
+        # 定时触发的情况，根据当前时间判断
+        # UTC 23:00 (北京时间 07:00) - 准备早上任务
+        if [ "$hour_utc" == "23" ] && [ "$minute_utc" -ge "0" ] && [ "$minute_utc" -lt "30" ]; then
+          echo "task_type=daily_todo" >> $GITHUB_OUTPUT
+          echo "action_type=prepare" >> $GITHUB_OUTPUT
+          echo "send_time=08:00" >> $GITHUB_OUTPUT
+          echo "emoji=📋" >> $GITHUB_OUTPUT
+          echo "准备早上任务"
+          exit 0
+        fi
+        
+        # UTC 00:00 (北京时间 08:00) - 发送早上任务
+        if [ "$hour_utc" == "00" ] && [ "$minute_utc" -ge "0" ] && [ "$minute_utc" -lt "30" ]; then
+          echo "task_type=daily_todo" >> $GITHUB_OUTPUT
+          echo "action_type=send" >> $GITHUB_OUTPUT
+          echo "send_time=08:00" >> $GITHUB_OUTPUT
+          echo "emoji=📋" >> $GITHUB_OUTPUT
+          echo "发送早上任务"
+          exit 0
+        fi
+        
+        # UTC 13:30 (北京时间 21:30) - 准备晚上任务
+        if [ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "30" ]; then
+          echo "task_type=daily_done" >> $GITHUB_OUTPUT
+          echo "action_type=prepare" >> $GITHUB_OUTPUT
+          echo "send_time=22:00" >> $GITHUB_OUTPUT
+          echo "emoji=✅" >> $GITHUB_OUTPUT
+          echo "准备晚上任务"
+          exit 0
+        fi
+        
+        # UTC 14:00 (北京时间 22:00) - 发送晚上任务
+        if [ "$hour_utc" == "14" ] && [ "$minute_utc" -ge "0" ] && [ "$minute_utc" -lt "30" ]; then
+          echo "task_type=daily_done" >> $GITHUB_OUTPUT
+          echo "action_type=send" >> $GITHUB_OUTPUT
+          echo "send_time=22:00" >> $GITHUB_OUTPUT
+          echo "emoji=✅" >> $GITHUB_OUTPUT
+          echo "发送晚上任务"
+          exit 0
+        fi
+        
+        # 如果不是预期的执行时间，返回未知状态
+        echo "task_type=unknown" >> $GITHUB_OUTPUT
+        echo "action_type=unknown" >> $GITHUB_OUTPUT
+        echo "send_time=unknown" >> $GITHUB_OUTPUT
+        echo "emoji=❓" >> $GITHUB_OUTPUT
+        echo "无效的执行时间: ${hour_utc}:${minute_utc}"
     
     - name: Download previous artifact
       if: steps.action-type.outputs.action == 'send'
@@ -116,37 +166,77 @@ jobs:
         merge-multiple: true
       continue-on-error: true
     
+    - name: Check artifact
+      if: steps.action-type.outputs.action == 'send'
+      run: |
+        echo "=== 检查缓存数据 ==="
+        if [ -d "./data" ]; then
+          echo "数据目录存在"
+          ls -la ./data
+          if [ -f "./data/task_data.json" ]; then
+            echo "任务数据文件存在"
+            cat ./data/task_data.json | head -n 20
+          else
+            echo "警告: 任务数据文件不存在"
+            mkdir -p ./data
+          fi
+        else
+          echo "警告: 数据目录不存在"
+          mkdir -p ./data
+        fi
+    
     - name: Run reminder script
       id: reminder
       env:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         DATABASE_ID: ${{ secrets.DATABASE_ID }}
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
-        REMINDER_TYPE: ${{ steps.action-type.outputs.type }}
-        SEND_TIME: ${{ steps.action-type.outputs.time }}
-        ACTION_TYPE: ${{ steps.action-type.outputs.action }}
+        WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
+        WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+        REMINDER_TYPE: ${{ steps.action-type.outputs.task_type }}
+        ACTION_TYPE: ${{ steps.action-type.outputs.action_type }}
+        SEND_TIME: ${{ steps.action-type.outputs.send_time }}
+        FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_send == 'true' }}
+        DEBUG_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_mode == 'true' }}
       run: |
         echo "=== 环境变量检查 ==="
         echo "Python 版本:"
         python --version
         echo "当前时间 (UTC):"
-        date
+        date -u
         echo "当前时间 (北京):"
         TZ='Asia/Shanghai' date
         echo "REMINDER_TYPE: $REMINDER_TYPE"
-        echo "SEND_TIME: $SEND_TIME"
         echo "ACTION_TYPE: $ACTION_TYPE"
+        echo "SEND_TIME: $SEND_TIME"
         echo "PUSHPLUS_TOKEN 长度: ${#PUSHPLUS_TOKEN}"
         echo "PUSHPLUS_TOKEN 前8位: ${PUSHPLUS_TOKEN:0:8}***"
+        echo "FORCE_SEND: $FORCE_SEND"
+        echo "DEBUG_MODE: $DEBUG_MODE"
+        
+        # 如果是调试模式，显示更多信息
+        if [ "$DEBUG_MODE" == "true" ]; then
+          echo "=== 调试信息 ==="
+          echo "工作目录: $(pwd)"
+          echo "目录内容:"
+          ls -la
+          echo "数据目录内容:"
+          ls -la ./data || echo "数据目录不存在"
+          echo "Python 环境:"
+          pip list
+          echo "=== 调试信息结束 ==="
+        fi
+        
         echo "=== 开始执行脚本 ==="
-        python -u src/main.py
-        echo "=== 脚本执行完成 ==="
         
         # 如果是数据准备阶段，读取任务数量
         if [ "$ACTION_TYPE" == "prepare" ] && [ -f "./data/task_data.json" ]; then
-          TASK_COUNT=$(python -c "import json; f=open('./data/task_data.json'); data=json.load(f); print(data['tasks_count']); f.close()")
+          TASK_COUNT=$(python -c "import json; f=open('./data/task_data.json'); data=json.load(f); print(len(data.get('results', [])))")
           echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
         fi
+        
+        python -u src/main.py
+        echo "=== 脚本执行完成 ==="
     
     - name: Upload artifact
       if: steps.action-type.outputs.action == 'prepare'
@@ -167,11 +257,11 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
-          ${{ steps.action-type.outputs.emoji }} ${{ steps.action-type.outputs.type == 'daily_todo' && '今日待办任务' || '今日已完成任务' }}${{ steps.action-type.outputs.action == 'prepare' && '准备' || '发送' }}
+          ${{ steps.action-type.outputs.emoji }} ${{ steps.action-type.outputs.task_type == 'daily_todo' && '今日待办任务' || '今日已完成任务' }}${{ steps.action-type.outputs.action_type == 'prepare' && '准备' || '发送' }}
           
-          执行时间: ${{ steps.action-type.outputs.time }}
-          任务类型: ${{ steps.action-type.outputs.type }}
-          操作类型: ${{ steps.action-type.outputs.action }}
-          ${{ steps.action-type.outputs.action == 'prepare' && format('任务数量: {0}', steps.reminder.outputs.task_count) || '' }}
+          执行时间: ${{ steps.action-type.outputs.send_time }}
+          任务类型: ${{ steps.action-type.outputs.task_type }}
+          操作类型: ${{ steps.action-type.outputs.action_type }}
+          ${{ steps.action-type.outputs.action_type == 'prepare' && format('任务数量: {0}', steps.reminder.outputs.task_count) || '' }}
           
           运行时间: ${{ steps.current-time.outputs.time }}

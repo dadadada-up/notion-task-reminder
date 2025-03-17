@@ -32,254 +32,119 @@ DINGTALK_TOKEN = None  # 禁用钉钉推送
 DINGTALK_SECRET = None
 DINGTALK_WEBHOOK = None
 
+# 获取环境变量
+NOTION_TOKEN = os.environ.get('NOTION_TOKEN')
+DATABASE_ID = os.environ.get('DATABASE_ID')
+PUSHPLUS_TOKEN = os.environ.get('PUSHPLUS_TOKEN', '')
+WXPUSHER_TOKEN = os.environ.get('WXPUSHER_TOKEN', '')
+WXPUSHER_UID = os.environ.get('WXPUSHER_UID', '')
+DEBUG_MODE = os.environ.get('DEBUG_MODE', '').lower() in ['true', '1', 'yes']
+
+# 调试函数
+def debug_print(*args, **kwargs):
+    if DEBUG_MODE:
+        print("[DEBUG]", *args, **kwargs)
+
 def get_notion_tasks(is_done=False):
-    headers = {
-        "Authorization": f"Bearer {NOTION_TOKEN}",
-        "Notion-Version": "2022-06-28",
-        "Content-Type": "application/json"
-    }
-    
-    # 获取北京时间的今天的开始和结束时间
-    beijing_tz = pytz.timezone('Asia/Shanghai')
-    beijing_now = datetime.now(beijing_tz)
-    beijing_start = beijing_now.replace(hour=0, minute=0, second=0, microsecond=0)
-    beijing_end = beijing_now.replace(hour=23, minute=59, second=59, microsecond=999999)
-    
-    # 转换为 UTC 时间
-    utc_start = beijing_start.astimezone(timezone.utc)
-    utc_end = beijing_end.astimezone(timezone.utc)
-    
-    if is_done:
-        # 晚上查询当天已完成的任务
-        body = {
-            "filter": {
+    """
+    从 Notion 数据库获取任务
+    """
+    try:
+        debug_print(f"开始从 Notion 获取{'已完成' if is_done else '待办'}任务...")
+        
+        # 获取当前北京时间的日期
+        beijing_tz = pytz.timezone('Asia/Shanghai')
+        now = datetime.now(timezone.utc).astimezone(beijing_tz)
+        today = now.date()
+        today_str = today.strftime('%Y-%m-%d')
+        
+        debug_print(f"当前北京时间: {now}")
+        debug_print(f"今日日期: {today_str}")
+        
+        # 构建 API 请求
+        url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+        
+        headers = {
+            "Authorization": f"Bearer {NOTION_TOKEN}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28"
+        }
+        
+        # 根据是否完成构建不同的过滤条件
+        if is_done:
+            # 查询今天已完成的任务
+            filter_conditions = {
+                "and": [
+                    {
+                        "property": "完成日期",
+                        "date": {
+                            "equals": today_str
+                        }
+                    },
+                    {
+                        "property": "状态",
+                        "status": {
+                            "equals": "完成"
+                        }
+                    }
+                ]
+            }
+        else:
+            # 查询今天待办的任务
+            filter_conditions = {
                 "and": [
                     {
                         "property": "状态",
                         "status": {
-                            "equals": "done"
-                        }
-                    },
-                    {
-                        "property": "上次编辑时间",
-                        "last_edited_time": {
-                            "after": utc_start.isoformat(),
-                            "before": utc_end.isoformat()
+                            "does_not_equal": "完成"
                         }
                     }
                 ]
-            },
+            }
+        
+        # 构建请求体
+        payload = {
+            "filter": filter_conditions,
             "sorts": [
                 {
-                    "property": "四象限",
+                    "property": "优先级",
                     "direction": "ascending"
                 }
-            ],
-            "page_size": 100
+            ]
         }
-    else:
-        # 早上的待办任务查询
-        body = {
-            "filter": {
-                "and": [
-                    {
-                        "or": [
-                            {
-                                "property": "状态",
-                                "status": {
-                                    "equals": "inbox"
-                                }
-                            },
-                            {
-                                "property": "状态",
-                                "status": {
-                                    "equals": "doing"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "or": [
-                            {
-                                "property": "开始日期",
-                                "date": {
-                                    "is_empty": True
-                                }
-                            },
-                            {
-                                "property": "开始日期",
-                                "date": {
-                                    "on_or_before": beijing_now.strftime("%Y-%m-%d")
-                                }
-                            }
-                        ]
-                    }
-                ]
-            },
-            "sorts": [
-                {
-                    "property": "四象限",
-                    "direction": "ascending"
-                }
-            ],
-            "page_size": 100
-        }
-    
-    try:
-        print("正在发送请求到Notion API...")
-        print(f"查询条件: {body}")
         
-        all_tasks = []
-        has_more = True
-        start_cursor = None
-        max_retries = 3
-        retry_count = 0
+        debug_print(f"API 请求 URL: {url}")
+        debug_print(f"请求头: {headers}")
+        debug_print(f"请求体: {json.dumps(payload, ensure_ascii=False, indent=2)}")
         
-        # 使用分页获取所有任务，添加重试机制
-        while has_more and retry_count < max_retries:
-            try:
-                if start_cursor:
-                    body['start_cursor'] = start_cursor
-                
-                response = requests.post(
-                    f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
-                    headers=headers,
-                    json=body,
-                    timeout=30  # 添加超时设置
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    all_tasks.extend(data.get('results', []))
-                    has_more = data.get('has_more', False)
-                    start_cursor = data.get('next_cursor')
-                    retry_count = 0  # 重置重试计数
-                elif response.status_code == 429:  # Rate limit
-                    retry_count += 1
-                    print(f"达到速率限制，等待重试 ({retry_count}/{max_retries})")
-                    time.sleep(2 ** retry_count)  # 指数退避
-                else:
-                    print(f"Notion API错误: {response.text}")
-                    break
-                    
-            except requests.exceptions.Timeout:
-                retry_count += 1
-                print(f"请求超时，重试 ({retry_count}/{max_retries})")
-                time.sleep(2 ** retry_count)
-            except Exception as e:
-                print(f"请求出错: {str(e)}")
-                break
+        # 发送请求
+        response = requests.post(url, headers=headers, json=payload)
         
-        # 如果没有获取到任何任务，返回空结果
-        if not all_tasks:
-            print("未获取到任何任务数据")
-            return {"results": []}
-            
-        tasks_data = {"results": all_tasks}
+        # 检查响应状态
+        if response.status_code != 200:
+            print(f"API 请求失败: {response.status_code}")
+            print(f"响应内容: {response.text}")
+            return None
         
-        # 创建任务ID到任务信息的映射
-        task_map = {}
+        # 解析响应
+        data = response.json()
         
-        # 第一遍遍历：收集所有任务的基本信息
-        for task in tasks_data.get('results', []):
-            try:
-                task_id = task.get('id')
-                if not task_id:
-                    print(f"警告: 任务缺少ID，跳过")
-                    continue
-                    
+        debug_print(f"获取到 {len(data.get('results', []))} 个任务")
+        
+        if DEBUG_MODE and data.get('results'):
+            for i, task in enumerate(data.get('results', [])):
+                task_id = task.get('id', 'unknown')
                 properties = task.get('properties', {})
-                
-                # 获取任务名称
-                title = properties.get('任务名称', {})
-                if not title:
-                    print(f"警告: 任务 {task_id} 缺少标题属性，使用默认值")
-                    name = '未命名任务'
-                else:
-                    title_list = title.get('title', [])
-                    name = title_list[0].get('plain_text', '未命名任务') if title_list else '未命名任务'
-                
-                # 获取任务状态
-                status_obj = properties.get('状态', {})
-                status = status_obj.get('status', {}).get('name', 'unknown') if status_obj else 'unknown'
-                
-                # 获取负责人
-                assignee_obj = properties.get('负责人', {})
-                assignee = assignee_obj.get('select', {}).get('name', '未分配') if assignee_obj else '未分配'
-                
-                # 获取任务类型
-                task_type_obj = properties.get('任务类型', {})
-                task_type = task_type_obj.get('select', {}).get('name', '未分类') if task_type_obj else '未分类'
-                
-                # 获取优先级
-                priority_obj = properties.get('四象限', {})
-                priority = priority_obj.get('select', {}).get('name', 'P3') if priority_obj else 'P3'
-                
-                # 获取关系
-                parent_relations = properties.get('上级 项目', {}).get('relation', []) if properties.get('上级 项目') else []
-                child_relations = properties.get('子级 项目', {}).get('relation', []) if properties.get('子级 项目') else []
-                blocked_by = properties.get('被阻止', {}).get('relation', []) if properties.get('被阻止') else []
-                
-                task_info = {
-                    'id': task_id,
-                    'name': name,
-                    'status': status,
-                    'assignee': assignee,
-                    'task_type': task_type,
-                    'priority': priority,
-                    'parent_ids': [p.get('id') for p in parent_relations if p and p.get('id')],
-                    'child_ids': [c.get('id') for c in child_relations if c and c.get('id')],
-                    'parent_tasks': [],
-                    'child_tasks': [],
-                    'blocked_by': blocked_by
-                }
-                
-                task_map[task_id] = task_info
-                print(f"收集任务: {name} (ID: {task_id})")
-            except Exception as e:
-                print(f"处理任务时出错: {str(e)}")
-                continue
+                title_obj = properties.get('名称', {}).get('title', [{}])[0]
+                title = title_obj.get('plain_text', '无标题') if title_obj else '无标题'
+                debug_print(f"任务 {i+1}: {title} (ID: {task_id})")
         
-        # 第二遍遍历：建立父子关系
-        for task_id, task_info in task_map.items():
-            try:
-                # 处理父任务关系
-                for parent_id in task_info.get('parent_ids', []):
-                    if parent_id in task_map:
-                        parent_info = task_map[parent_id]
-                        task_info['parent_tasks'].append(parent_info)
-                        if task_info not in parent_info.get('child_tasks', []):
-                            parent_info['child_tasks'].append(task_info)
-                
-                # 处理子任务关系
-                for child_id in task_info.get('child_ids', []):
-                    if child_id in task_map:
-                        child_info = task_map[child_id]
-                        if child_info not in task_info.get('child_tasks', []):
-                            task_info['child_tasks'].append(child_info)
-                        if task_info not in child_info.get('parent_tasks', []):
-                            child_info['parent_tasks'].append(task_info)
-            except Exception as e:
-                print(f"建立任务关系时出错: {str(e)}")
-                continue
-        
-        # 更新原始数据中的任务信息
-        for task in tasks_data.get('results', []):
-            try:
-                task_id = task.get('id')
-                if task_id and task_id in task_map:
-                    task['details'] = task_map[task_id]
-            except Exception as e:
-                print(f"更新任务详情时出错: {str(e)}")
-                continue
-        
-        return tasks_data
-        
+        return data
     except Exception as e:
-        print(f"获取Notion任务时出错: {str(e)}")
+        print(f"获取任务时出错: {str(e)}")
         import traceback
         traceback.print_exc()
-        return {"results": []}
+        return None
 
 def format_message(tasks_data):
     """格式化早上的待办任务消息"""
@@ -572,72 +437,63 @@ def format_evening_message(tasks):
         traceback.print_exc()
         return "✅ 今日完成 (0/0)\n\n格式化消息时出错，请检查日志。"
 
-def send_to_wechat(message):
-    """发送消息到微信（通过 PushPlus）"""
-    url = "http://www.pushplus.plus/send"
-    
-    # 检查 token 是否为空
-    if not PUSHPLUS_TOKEN or PUSHPLUS_TOKEN.strip() == "":
-        print("错误: PUSHPLUS_TOKEN 未设置或为空")
-        return False
-        
-    data = {
-        "token": PUSHPLUS_TOKEN,
-        "title": "任务提醒",
-        "content": message,
-        "template": "txt",
-        "channel": "wechat"
-    }
-    
+def send_to_wechat(title, content):
+    """
+    使用 PushPlus 发送微信消息
+    """
     try:
-        print("\n=== PushPlus 发送信息 ===")
-        print(f"发送地址: {url}")
-        print(f"Token长度: {len(PUSHPLUS_TOKEN)}")
-        print(f"Token前8位: {PUSHPLUS_TOKEN[:8]}***")
-        print(f"消息长度: {len(message)}")
-        print(f"消息内容预览: {message[:100]}...")
-        
-        # 设置超时和重试
-        session = requests.Session()
-        retries = requests.adapters.Retry(total=3, backoff_factor=1)
-        session.mount('http://', requests.adapters.HTTPAdapter(max_retries=retries))
-        session.mount('https://', requests.adapters.HTTPAdapter(max_retries=retries))
-        
-        print("\n正在发送请求...")
-        response = session.post(url, json=data, timeout=30)
-        print(f"响应状态码: {response.status_code}")
-        print(f"响应头: {dict(response.headers)}")
-        
-        try:
-            result = response.json()
-            print(f"响应内容: {result}")
-            
-            if response.status_code == 200:
-                if result.get('code') == 200:
-                    print("消息发送成功")
-                    return True
-                else:
-                    print(f"PushPlus返回错误: code={result.get('code')}, msg={result.get('msg')}")
-                    if result.get('code') == 400:
-                        print("可能是 token 无效，请检查 token 是否正确")
-                    return False
-            else:
-                print(f"HTTP请求失败: {response.status_code}")
-                return False
-                
-        except ValueError as e:
-            print(f"解析响应JSON失败: {str(e)}")
-            print(f"原始响应内容: {response.text}")
+        if not PUSHPLUS_TOKEN or len(PUSHPLUS_TOKEN.strip()) < 8:
+            print("PUSHPLUS_TOKEN 未设置或无效")
             return False
             
-    except requests.exceptions.Timeout:
-        print("请求超时")
-        return False
-    except requests.exceptions.ConnectionError:
-        print("连接错误，可能是网络问题或 PushPlus 服务不可用")
+        debug_print(f"准备发送 PushPlus 消息")
+        debug_print(f"标题: {title}")
+        debug_print(f"内容长度: {len(content)}")
+        debug_print(f"内容预览: {content[:100]}...")
+        
+        url = "http://www.pushplus.plus/send"
+        data = {
+            "token": PUSHPLUS_TOKEN,
+            "title": title,
+            "content": content,
+            "template": "markdown"
+        }
+        
+        debug_print(f"请求 URL: {url}")
+        debug_print(f"Token 长度: {len(PUSHPLUS_TOKEN)}")
+        
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=data, timeout=10)
+                debug_print(f"PushPlus 响应状态码: {response.status_code}")
+                debug_print(f"PushPlus 响应内容: {response.text}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("code") == 200:
+                        print("PushPlus 消息发送成功")
+                        return True
+                    else:
+                        print(f"PushPlus 消息发送失败: {result.get('msg', '未知错误')}")
+                else:
+                    print(f"PushPlus 请求失败，状态码: {response.status_code}")
+                
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 指数退避
+                    print(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+            except Exception as e:
+                print(f"PushPlus 请求异常: {str(e)}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    print(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+        
         return False
     except Exception as e:
-        print(f"发送消息时出错: {str(e)}")
+        print(f"发送 PushPlus 消息时出错: {str(e)}")
         return False
 
 def send_to_dingtalk(message):
@@ -645,59 +501,112 @@ def send_to_dingtalk(message):
     print("\n=== 钉钉推送已禁用 ===")
     return False
 
-def send_to_wxpusher(message):
-    """发送消息到 WxPusher"""
-    url = "http://wxpusher.zjiecode.com/api/send/message"
-    data = {
-        "appToken": WXPUSHER_TOKEN,
-        "content": message,
-        "contentType": 1,  # 1表示文本
-        "uids": [WXPUSHER_UID],
-        "summary": "任务提醒"  # 消息摘要
-    }
-    
+def send_to_wxpusher(title, content):
+    """
+    使用 WxPusher 发送微信消息
+    """
     try:
-        print(f"\n=== WxPusher 发送信息 ===")
-        print(f"请求URL: {url}")
-        print(f"发送数据: {data}")
-        
-        response = requests.post(url, json=data, timeout=10)
-        print(f"响应状态码: {response.status_code}")
-        print(f"响应内容: {response.text}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('success'):
-                print("WxPusher消息发送成功")
-                return True
-            else:
-                print(f"WxPusher返回错误: {result}")
-                return False
-        else:
-            print(f"HTTP请求失败: {response.status_code}")
+        if not WXPUSHER_TOKEN or len(WXPUSHER_TOKEN.strip()) < 8 or not WXPUSHER_UID:
+            print("WXPUSHER_TOKEN 或 WXPUSHER_UID 未设置或无效")
             return False
             
+        debug_print(f"准备发送 WxPusher 消息")
+        debug_print(f"标题: {title}")
+        debug_print(f"内容长度: {len(content)}")
+        debug_print(f"内容预览: {content[:100]}...")
+        
+        url = "https://wxpusher.zjiecode.com/api/send/message"
+        data = {
+            "appToken": WXPUSHER_TOKEN,
+            "content": f"# {title}\n\n{content}",
+            "contentType": 3,  # Markdown
+            "uids": [WXPUSHER_UID],
+        }
+        
+        debug_print(f"请求 URL: {url}")
+        debug_print(f"Token 长度: {len(WXPUSHER_TOKEN)}")
+        debug_print(f"UID: {WXPUSHER_UID}")
+        
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=data, timeout=10)
+                debug_print(f"WxPusher 响应状态码: {response.status_code}")
+                debug_print(f"WxPusher 响应内容: {response.text}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("success"):
+                        print("WxPusher 消息发送成功")
+                        return True
+                    else:
+                        print(f"WxPusher 消息发送失败: {result.get('msg', '未知错误')}")
+                else:
+                    print(f"WxPusher 请求失败，状态码: {response.status_code}")
+                
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 指数退避
+                    print(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+            except Exception as e:
+                print(f"WxPusher 请求异常: {str(e)}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    print(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+        
+        return False
     except Exception as e:
-        print(f"WxPusher发送失败: {str(e)}")
+        print(f"发送 WxPusher 消息时出错: {str(e)}")
         return False
 
 def send_message(message):
-    """统一的消息发送函数"""
-    results = []
+    """
+    发送消息到各个渠道
+    """
+    if not message or not message.strip():
+        print("错误: 消息内容为空，无法发送")
+        return False
+        
+    debug_print(f"准备发送消息，长度: {len(message)}")
+    debug_print(f"消息内容预览: {message[:100]}...")
     
-    # PushPlus 推送
-    print("\n=== 开始 PushPlus 推送 ===")
-    pushplus_result = send_to_wechat(message)
-    results.append(pushplus_result)
-    print(f"PushPlus发送{'成功' if pushplus_result else '失败'}")
+    # 提取标题（第一行）
+    lines = message.strip().split('\n')
+    title = lines[0].strip() if lines else "任务提醒"
     
-    # WxPusher 推送
-    print("\n=== 开始 WxPusher 推送 ===")
-    wxpusher_result = send_to_wxpusher(message)
-    results.append(wxpusher_result)
-    print(f"WxPusher发送{'成功' if wxpusher_result else '失败'}")
+    # 尝试所有可用的渠道发送消息
+    success = False
     
-    return any(results)
+    # 尝试通过 PushPlus 发送
+    if PUSHPLUS_TOKEN:
+        debug_print("尝试通过 PushPlus 发送消息...")
+        if send_to_wechat(title, message):
+            success = True
+            debug_print("PushPlus 发送成功")
+        else:
+            debug_print("PushPlus 发送失败")
+    else:
+        debug_print("PushPlus 未配置，跳过")
+    
+    # 尝试通过 WxPusher 发送
+    if WXPUSHER_TOKEN and WXPUSHER_UID:
+        debug_print("尝试通过 WxPusher 发送消息...")
+        if send_to_wxpusher(title, message):
+            success = True
+            debug_print("WxPusher 发送成功")
+        else:
+            debug_print("WxPusher 发送失败")
+    else:
+        debug_print("WxPusher 未配置，跳过")
+    
+    # 如果所有渠道都失败，返回失败
+    if not success:
+        print("所有消息渠道发送失败")
+        return False
+    
+    return True
 
 def wait_until_send_time():
     # 如果是 GitHub Actions 环境，直接发送
@@ -722,73 +631,145 @@ def wait_until_send_time():
         time.sleep(wait_seconds)
 
 def prepare_task_data(is_done=False):
-    """准备任务数据并保存到文件"""
-    print(f"准备{'已完成' if is_done else '待办'}任务数据...")
-    
-    # 创建数据目录
-    data_dir = Path("./data")
-    data_dir.mkdir(exist_ok=True)
-    
-    # 获取任务数据
-    tasks = get_notion_tasks(is_done)
-    message = format_evening_message(tasks) if is_done else format_message(tasks)
-    
-    # 保存数据
-    data_file = data_dir / "task_data.json"
-    data = {
-        "message": message,
-        "type": "daily_done" if is_done else "daily_todo",
-        "tasks_count": len(tasks.get('results', [])),
-    }
-    
-    with open(data_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    
-    print(f"数据已保存到 {data_file}")
-    return True
+    """
+    准备任务数据并保存到文件
+    """
+    try:
+        task_type = "已完成任务" if is_done else "待办任务"
+        print(f"准备{task_type}数据...")
+        debug_print(f"开始获取{task_type}数据")
+        
+        # 确保数据目录存在
+        os.makedirs('./data', exist_ok=True)
+        debug_print("数据目录已确认")
+        
+        # 获取任务数据
+        tasks = get_notion_tasks(is_done)
+        
+        if not tasks:
+            print(f"警告: 未获取到{task_type}数据")
+            # 创建一个空的任务数据结构
+            tasks = {"results": []}
+            debug_print("创建了空的任务数据结构")
+        
+        # 获取任务数量
+        task_count = len(tasks.get('results', []))
+        print(f"获取到 {task_count} 个{task_type}")
+        
+        # 保存到文件
+        file_path = './data/task_data.json'
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(tasks, f, ensure_ascii=False, indent=2)
+        
+        # 验证文件是否成功创建
+        if not os.path.exists(file_path):
+            print(f"错误: 文件 {file_path} 未成功创建")
+            return False
+            
+        # 检查文件大小
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            print(f"错误: 文件 {file_path} 大小为 0")
+            return False
+            
+        debug_print(f"任务数据已保存到 {file_path}，文件大小: {file_size} 字节")
+        
+        # 读取保存的数据进行验证
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                saved_data = json.load(f)
+                saved_count = len(saved_data.get('results', []))
+                debug_print(f"验证: 保存的任务数量为 {saved_count}")
+                if saved_count != task_count:
+                    print(f"警告: 保存的任务数量 ({saved_count}) 与获取的任务数量 ({task_count}) 不一致")
+        except Exception as e:
+            print(f"验证保存的数据时出错: {str(e)}")
+        
+        print(f"{task_type}数据准备完成")
+        return True
+    except Exception as e:
+        print(f"准备任务数据时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def send_cached_message():
-    """发送已缓存的消息
-    返回值:
-    - True: 发送成功
-    - False: 发送失败
-    - None: 缓存文件不存在
     """
-    data_file = Path("./data/task_data.json")
-    
+    发送缓存的消息
+    """
     try:
-        # 检查文件是否存在
-        if not data_file.exists():
-            print("未找到缓存数据文件")
+        file_path = './data/task_data.json'
+        
+        # 检查缓存文件是否存在
+        if not os.path.exists(file_path):
+            print(f"缓存文件 {file_path} 不存在")
+            # 检查目录内容
+            if os.path.exists('./data'):
+                print("数据目录内容:")
+                for item in os.listdir('./data'):
+                    print(f" - {item}")
+            else:
+                print("数据目录不存在")
             return None
+        
+        # 检查文件大小
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            print(f"错误: 缓存文件 {file_path} 大小为 0")
+            return False
             
+        debug_print(f"读取缓存文件 {file_path}，文件大小: {file_size} 字节")
+        
         # 读取缓存数据
-        with open(data_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        message = data.get("message")
-        tasks_count = data.get("tasks_count", 0)
-        task_type = data.get("type", "unknown")
-        
-        if not message or not message.strip():
-            print("缓存消息为空，无法发送")
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                tasks = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"解析缓存文件时出错: {str(e)}")
+            # 尝试读取文件内容进行调试
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    print(f"缓存文件内容预览: {content[:200]}...")
+            except Exception:
+                print("无法读取缓存文件内容")
             return False
         
-        print(f"从缓存读取到任务数据，类型: {task_type}，共 {tasks_count} 条任务")
+        # 检查任务数量
+        task_count = len(tasks.get('results', []))
+        debug_print(f"缓存中的任务数量: {task_count}")
         
-        # 发送消息
-        if send_message(message):
-            print("缓存消息发送成功")
-            return True
-        else:
-            print("缓存消息发送失败")
-            return False
+        # 根据环境变量确定任务类型
+        is_done = os.environ.get('REMINDER_TYPE') == 'daily_done'
+        task_type = "已完成任务" if is_done else "待办任务"
+        
+        # 格式化消息
+        try:
+            message = format_evening_message(tasks) if is_done else format_message(tasks)
             
-    except json.JSONDecodeError:
-        print("缓存数据格式错误，无法解析")
-        return False
+            if not message or not message.strip():
+                print(f"警告: 格式化后的消息为空，使用默认消息")
+                message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{task_type}数据。"
+                
+            debug_print(f"格式化后的消息长度: {len(message)}")
+            debug_print(f"消息内容预览: {message[:100]}...")
+            
+            # 发送消息
+            if send_message(message):
+                print(f"缓存的{task_type}消息发送成功")
+                return True
+            else:
+                print(f"缓存的{task_type}消息发送失败")
+                return False
+        except Exception as e:
+            print(f"处理缓存数据时出错: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
     except Exception as e:
-        print(f"读取缓存数据出错: {str(e)}")
+        print(f"发送缓存消息时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def main():
@@ -809,9 +790,22 @@ def main():
         # 检查环境变量
         print("检查环境变量...")
         print(f"PUSHPLUS_TOKEN: {PUSHPLUS_TOKEN[:8]}*** (长度: {len(PUSHPLUS_TOKEN)})")
+        print(f"WXPUSHER_TOKEN: {WXPUSHER_TOKEN[:8]}*** (长度: {len(WXPUSHER_TOKEN)})")
+        print(f"WXPUSHER_UID: {WXPUSHER_UID}")
         print(f"REMINDER_TYPE: {os.environ.get('REMINDER_TYPE', '未设置')}")
         print(f"NOTION_TOKEN: {'已设置' if NOTION_TOKEN else '未设置'}")
         print(f"DATABASE_ID: {'已设置' if DATABASE_ID else '未设置'}")
+        
+        # 检查推送渠道是否配置正确
+        if not PUSHPLUS_TOKEN or len(PUSHPLUS_TOKEN.strip()) < 8:
+            print("警告: PUSHPLUS_TOKEN 未正确设置")
+        
+        if not WXPUSHER_TOKEN or len(WXPUSHER_TOKEN.strip()) < 8 or not WXPUSHER_UID:
+            print("警告: WXPUSHER 配置未正确设置")
+            
+        if (not PUSHPLUS_TOKEN or len(PUSHPLUS_TOKEN.strip()) < 8) and (not WXPUSHER_TOKEN or len(WXPUSHER_TOKEN.strip()) < 8 or not WXPUSHER_UID):
+            print("错误: 所有推送渠道都未正确配置，无法发送消息")
+            # 继续执行，但可能无法发送消息
         
         is_done = os.environ.get('REMINDER_TYPE') == 'daily_done'
         action_type = os.environ.get('ACTION_TYPE', 'send')
@@ -821,6 +815,11 @@ def main():
         task_type_desc = "已完成任务" if is_done else "待办任务"
         action_desc = "准备" if action_type == 'prepare' else "发送"
         print(f"\n=== 开始{action_desc}{task_type_desc} ===")
+        
+        # 强制发送模式（用于调试）
+        force_send = os.environ.get('FORCE_SEND', '').lower() in ['true', '1', 'yes']
+        if force_send:
+            print("警告: 强制发送模式已启用，将忽略时间检查")
         
         if action_type == 'prepare':
             # 准备数据模式，只获取和保存数据，不发送消息
@@ -843,10 +842,10 @@ def main():
             }
             expected_time = valid_send_times.get(os.environ.get('REMINDER_TYPE', ''), None)
             
-            if expected_time and send_time != expected_time:
+            if expected_time and send_time != expected_time and not force_send:
                 print(f"警告: 当前设置的发送时间 {send_time} 与任务类型 {os.environ.get('REMINDER_TYPE')} 的预期时间 {expected_time} 不匹配")
             
-            if send_time not in ['08:00', '22:00']:
+            if send_time not in ['08:00', '22:00'] and not force_send:
                 print(f"当前时间 {send_time} 不是指定的发送时间（08:00 或 22:00），跳过发送")
                 return
                 
