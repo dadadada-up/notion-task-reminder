@@ -52,7 +52,7 @@ def get_task_name(task):
         return "未知任务"
     
     properties = task.get('properties', {})
-    title_property = properties.get('名称', {})  # 使用实际的字段名称
+    title_property = properties.get('任务名称', {})  # 使用实际的字段名称
     title = title_property.get('title', [])
     
     if title and len(title) > 0:
@@ -156,7 +156,7 @@ def get_notion_tasks(is_done=False):
             for i, task in enumerate(data.get('results', [])):
                 task_id = task.get('id', 'unknown')
                 properties = task.get('properties', {})
-                title_obj = properties.get('名称', {}).get('title', [{}])[0]
+                title_obj = properties.get('任务名称', {}).get('title', [{}])[0]
                 title = title_obj.get('plain_text', '无标题') if title_obj else '无标题'
                 debug_print(f"任务 {i+1}: {title} (ID: {task_id})")
         
@@ -187,7 +187,7 @@ def format_message(tasks_data):
                 properties = result.get('properties', {})
                 
                 # 获取任务名称
-                title = properties.get('名称', {}).get('title', [])
+                title = properties.get('任务名称', {}).get('title', [])
                 name = title[0].get('plain_text', '未命名任务') if title else '未命名任务'
                 
                 # 获取任务状态
@@ -317,7 +317,7 @@ def format_evening_message(tasks):
             try:
                 # 获取任务名称
                 properties = task.get('properties', {})
-                title = properties.get('名称', {}).get('title', [])
+                title = properties.get('任务名称', {}).get('title', [])
                 name = title[0].get('plain_text', '未命名任务') if title else '未命名任务'
                 
                 # 将 UTC 时间转换为北京时间
@@ -362,7 +362,7 @@ def format_evening_message(tasks):
                 properties = task.get('properties', {})
                 
                 # 获取任务名称
-                title = properties.get('名称', {}).get('title', [])
+                title = properties.get('任务名称', {}).get('title', [])
                 name = title[0].get('plain_text', '未命名任务') if title else '未命名任务'
                 
                 # 获取任务类型
