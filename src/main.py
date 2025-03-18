@@ -936,16 +936,17 @@ def main():
         
         # 任务类型和操作类型的日志
         task_type_desc = "已完成任务" if is_done else "待办任务"
-        action_desc = "准备" if action_type == 'prepare' else "发送"
-        print(f"\n=== 开始{action_desc}{task_type_desc} ===")
         
         # 强制发送模式（用于调试）
         force_send = os.environ.get('FORCE_SEND', '').lower() in ['true', '1', 'yes']
         if force_send:
             print("警告: 强制发送模式已启用，将忽略时间检查")
         
+        # 处理不同的操作类型
         if action_type == 'prepare':
             # 准备数据模式，只获取和保存数据，不发送消息
+            action_desc = "准备"
+            print(f"\n=== 开始{action_desc}{task_type_desc} ===")
             print(f"准备{task_type_desc}数据...")
             try:
                 if prepare_task_data(is_done):
@@ -956,8 +957,147 @@ def main():
             except Exception as e:
                 print(f"数据准备过程中出错: {str(e)}")
                 print("继续执行，不中断流程")
+        elif action_type == 'combined':
+            # 合并模式：先准备数据，然后直接发送
+            action_desc = "准备并发送"
+            print(f"\n=== 开始{action_desc}{task_type_desc} ===")
+            
+            # 检查是否是允许的发送时间
+            valid_send_times = {
+                'daily_todo': '08:00',
+                'daily_done': '22:00'
+            }
+            expected_time = valid_send_times.get(os.environ.get('REMINDER_TYPE', ''), None)
+            
+            if expected_time and send_time != expected_time and not force_send:
+                print(f"警告: 当前设置的发送时间 {send_time} 与任务类型 {os.environ.get('REMINDER_TYPE')} 的预期时间 {expected_time} 不匹配")
+            
+            if send_time not in ['08:00', '22:00'] and not force_send:
+                print(f"当前时间 {send_time} 不是指定的发送时间（08:00 或 22:00），跳过发送")
+                return
+            
+            # 1. 准备数据
+            print(f"第一步: 准备{task_type_desc}数据...")
+            tasks = None
+            
+            # 多次尝试获取数据
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    print(f"获取数据尝试 {attempt+1}/{max_retries}")
+                    tasks = get_notion_tasks(is_done)
+                    
+                    if tasks and tasks.get('results'):
+                        print(f"成功获取到 {len(tasks.get('results', []))} 个任务")
+                        break
+                    else:
+                        print("未获取到任务数据，将重试")
+                        
+                    if attempt < max_retries - 1:
+                        wait_time = 5 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+                except Exception as e:
+                    print(f"获取数据时出错: {str(e)}")
+                    if attempt < max_retries - 1:
+                        wait_time = 5 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+            
+            # 2. 发送消息
+            print(f"第二步: 发送{task_type_desc}消息...")
+            
+            # 即使没有获取到任务，也生成一个默认消息
+            if not tasks or not tasks.get('results'):
+                print("未获取到任务数据，使用默认消息")
+                default_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{'已完成' if is_done else '待办'}任务数据。\n\n可能的原因：\n1. Notion API 连接问题\n2. 数据库中没有符合条件的任务\n3. 数据库结构可能已更改"
+                
+                # 多次尝试发送默认消息
+                for attempt in range(3):
+                    try:
+                        print(f"发送默认消息尝试 {attempt+1}/3")
+                        if send_message(default_message):
+                            print("默认消息发送成功")
+                            return
+                        else:
+                            print(f"默认消息发送失败，尝试 {attempt+1}/3")
+                        
+                        if attempt < 2:
+                            wait_time = 15 * (attempt + 1)
+                            print(f"等待 {wait_time} 秒后重试...")
+                            time.sleep(wait_time)
+                    except Exception as e:
+                        print(f"发送默认消息时出错: {str(e)}")
+                        if attempt < 2:
+                            wait_time = 15 * (attempt + 1)
+                            print(f"等待 {wait_time} 秒后重试...")
+                            time.sleep(wait_time)
+                
+                # 如果所有尝试都失败，抛出异常
+                raise Exception(f"默认{task_type_desc}消息发送失败")
+            
+            print(f"获取到 {len(tasks.get('results', []))} 个任务")
+            
+            # 保存数据到缓存（可选）
+            try:
+                os.makedirs('./data', exist_ok=True)
+                cache_file = './data/task_data.json'
+                with open(cache_file, 'w', encoding='utf-8') as f:
+                    json.dump(tasks, f, ensure_ascii=False, indent=2)
+                print(f"任务数据已保存到缓存文件: {cache_file}")
+            except Exception as e:
+                print(f"保存缓存数据时出错: {str(e)}")
+                # 继续执行，不中断流程
+            
+            # 多次尝试格式化和发送消息
+            for attempt in range(3):
+                try:
+                    print(f"格式化和发送消息尝试 {attempt+1}/3")
+                    message = format_evening_message(tasks) if is_done else format_message(tasks)
+                    
+                    if not message or not message.strip():
+                        print(f"生成消息为空，使用默认消息")
+                        message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n暂无{'已完成' if is_done else '待办'}任务数据。"
+                    
+                    if send_message(message):
+                        print("消息发送成功")
+                        return
+                    else:
+                        print(f"消息发送失败，尝试 {attempt+1}/3")
+                    
+                    if attempt < 2:
+                        wait_time = 20 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+                except Exception as e:
+                    print(f"格式化或发送消息时出错: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    
+                    if attempt < 2:
+                        wait_time = 20 * (attempt + 1)
+                        print(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+                    
+                    # 最后一次尝试，使用简单消息
+                    if attempt == 2:
+                        try:
+                            print("尝试发送简单消息...")
+                            task_count = len(tasks.get('results', []))
+                            simple_message = f"{'✅ 今日完成任务' if is_done else '📋 今日待办任务'}\n\n获取到 {task_count} 个任务，但格式化失败。\n\n错误信息: {str(e)}"
+                            if send_message(simple_message):
+                                print("简单消息发送成功")
+                                return
+                        except Exception as e2:
+                            print(f"发送简单消息也失败了: {str(e2)}")
+            
+            # 如果所有尝试都失败，抛出异常
+            raise Exception(f"{task_type_desc}消息发送失败")
         else:
-            # 发送模式
+            # 标准发送模式
+            action_desc = "发送"
+            print(f"\n=== 开始{action_desc}{task_type_desc} ===")
+            
             # 检查是否是允许的发送时间
             valid_send_times = {
                 'daily_todo': '08:00',
