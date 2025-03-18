@@ -701,10 +701,14 @@ def send_message(message):
         return False
 
 def wait_until_send_time():
-    # 如果是 GitHub Actions 环境，直接发送
-    if os.environ.get('GITHUB_ACTIONS'):
+    # 获取强制发送环境变量
+    force_send = os.environ.get('FORCE_SEND', 'false').lower() == 'true'
+    if force_send:
+        print("已启用强制发送模式，忽略时间检查...")
         return
-        
+    
+    # 即使在 GitHub Actions 环境中也进行时间检查
+    # 但设置更宽松的时间窗口，最多等待 5 分钟
     beijing_tz = pytz.timezone('Asia/Shanghai')
     target_time_str = os.environ.get('SEND_TIME', '08:00')  # 默认早上8点
     
@@ -713,14 +717,29 @@ def wait_until_send_time():
     target_datetime = datetime.combine(now.date(), target_time)
     target_datetime = beijing_tz.localize(target_datetime)
     
-    # 如果当前时间已经过了目标时间，说明是测试运行，立即发送
-    if now.time() > target_time:
+    # 检查当前时间与目标时间的差距
+    time_diff_seconds = (target_datetime - now).total_seconds()
+    
+    # 如果是GitHub Actions环境，并且时间差大于300秒(5分钟)，就不等待
+    if os.environ.get('GITHUB_ACTIONS') and (time_diff_seconds < 0 or time_diff_seconds > 300):
+        print(f"当前时间: {now.strftime('%H:%M:%S')}, 目标发送时间: {target_time_str}")
+        if time_diff_seconds < 0:
+            print(f"当前时间已经过了目标时间，直接发送...")
+        else:
+            print(f"距离目标时间还有 {time_diff_seconds/60:.1f} 分钟，超过等待窗口，直接发送...")
         return
     
-    wait_seconds = (target_datetime - now).total_seconds()
+    # 如果当前时间已经过了目标时间，说明是测试运行，立即发送
+    if time_diff_seconds < 0:
+        print(f"当前时间已经过了目标时间，直接发送...")
+        return
+    
+    # 仅在时间差小于5分钟时等待
+    wait_seconds = min(time_diff_seconds, 300)
     if wait_seconds > 0:
-        print(f"等待发送时间，将在 {target_time_str} 发送...")
+        print(f"等待发送时间，当前: {now.strftime('%H:%M:%S')}, 目标: {target_time_str}, 等待 {wait_seconds:.1f} 秒...")
         time.sleep(wait_seconds)
+        print(f"等待结束，准备发送消息...")
 
 def prepare_task_data(is_done=False):
     """
@@ -943,21 +962,7 @@ def main():
             print("警告: 强制发送模式已启用，将忽略时间检查")
         
         # 处理不同的操作类型
-        if action_type == 'prepare':
-            # 准备数据模式，只获取和保存数据，不发送消息
-            action_desc = "准备"
-            print(f"\n=== 开始{action_desc}{task_type_desc} ===")
-            print(f"准备{task_type_desc}数据...")
-            try:
-                if prepare_task_data(is_done):
-                    print(f"{task_type_desc}数据准备完成")
-                    return
-                else:
-                    print(f"{task_type_desc}数据准备失败，但不中断执行")
-            except Exception as e:
-                print(f"数据准备过程中出错: {str(e)}")
-                print("继续执行，不中断流程")
-        elif action_type == 'combined':
+        if action_type == 'combined':
             # 合并模式：先准备数据，然后直接发送
             action_desc = "准备并发送"
             print(f"\n=== 开始{action_desc}{task_type_desc} ===")

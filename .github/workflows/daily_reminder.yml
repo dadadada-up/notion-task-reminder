@@ -2,8 +2,8 @@ name: Daily Task Reminder
 
 on:
   schedule:
-    - cron: '0 0 * * *'    # UTC 00:00 = 北京时间 08:00 (待办任务)
-    - cron: '0 14 * * *'   # UTC 14:00 = 北京时间 22:00 (完成任务)
+    - cron: '50 23 * * *'    # UTC 23:50 = 北京时间约 07:50 (提前10分钟，待办任务)
+    - cron: '50 13 * * *'    # UTC 13:50 = 北京时间约 21:50 (提前10分钟，完成任务)
   workflow_dispatch:      # 允许手动触发
     inputs:
       task_type:
@@ -17,10 +17,9 @@ on:
       action_type:
         description: '操作类型'
         required: true
-        default: 'send'
+        default: 'combined'
         type: choice
         options:
-          - prepare
           - send
           - combined
       force_send:
@@ -71,6 +70,9 @@ jobs:
         
         echo "当前 UTC 时间: ${hour_utc}:${minute_utc}"
         
+        # 默认使用 combined 操作类型（合并准备和发送）
+        action_type="combined"
+        
         # 判断是手动触发还是定时触发
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           echo "手动触发工作流"
@@ -108,21 +110,21 @@ jobs:
           exit 0
         fi
         
-        # 定时触发的情况，根据当前时间判断
-        # UTC 00:00 (北京时间 08:00) - 待办任务
-        if [ "$hour_utc" == "00" ] && [ "$minute_utc" -ge "0" ] && [ "$minute_utc" -lt "30" ]; then
+        # 定时触发的情况，根据当前时间判断任务类型
+        # UTC 23:50-00:30 (北京时间约 07:50-08:30) - 待办任务
+        if ([ "$hour_utc" == "23" ] && [ "$minute_utc" -ge "50" ]) || ([ "$hour_utc" == "00" ] && [ "$minute_utc" -lt "30" ]); then
           echo "task_type=daily_todo" >> $GITHUB_OUTPUT
-          echo "action_type=combined" >> $GITHUB_OUTPUT
+          echo "action_type=${action_type}" >> $GITHUB_OUTPUT
           echo "send_time=08:00" >> $GITHUB_OUTPUT
           echo "emoji=📋" >> $GITHUB_OUTPUT
           echo "发送早上待办任务"
           exit 0
         fi
         
-        # UTC 14:00 (北京时间 22:00) - 完成任务
-        if [ "$hour_utc" == "14" ] && [ "$minute_utc" -ge "0" ] && [ "$minute_utc" -lt "30" ]; then
+        # UTC 13:50-14:30 (北京时间约 21:50-22:30) - 完成任务
+        if ([ "$hour_utc" == "13" ] && [ "$minute_utc" -ge "50" ]) || ([ "$hour_utc" == "14" ] && [ "$minute_utc" -lt "30" ]); then
           echo "task_type=daily_done" >> $GITHUB_OUTPUT
-          echo "action_type=combined" >> $GITHUB_OUTPUT
+          echo "action_type=${action_type}" >> $GITHUB_OUTPUT
           echo "send_time=22:00" >> $GITHUB_OUTPUT
           echo "emoji=✅" >> $GITHUB_OUTPUT
           echo "发送晚上完成任务"
