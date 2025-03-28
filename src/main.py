@@ -93,14 +93,32 @@ def get_notion_tasks(is_done=False):
                 ]
             }
         else:
-            # 查询今天待办的任务
+            # 查询今天待办的任务（新的查询逻辑）
             filter_conditions = {
-                "and": [
+                "or": [
+                    # 1. 所有状态为 doing 的任务
                     {
                         "property": "状态",
                         "status": {
-                            "does_not_equal": "done"
+                            "equals": "doing"
                         }
+                    },
+                    # 2. 状态为 inbox 且开始日期小于等于今日的任务
+                    {
+                        "and": [
+                            {
+                                "property": "状态",
+                                "status": {
+                                    "equals": "inbox"
+                                }
+                            },
+                            {
+                                "property": "开始日期",
+                                "date": {
+                                    "on_or_before": today_str
+                                }
+                            }
+                        ]
                     }
                 ]
             }
