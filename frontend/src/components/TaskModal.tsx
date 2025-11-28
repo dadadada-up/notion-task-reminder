@@ -12,10 +12,13 @@ interface TaskModalProps {
 const TaskModal = ({ task, isOpen, onClose, onSave }: TaskModalProps) => {
   const [formData, setFormData] = useState({
     name: '',
-    status: 'inbox' as Task['status'],
+    status: '收集箱' as Task['status'],
     priority: 'P3 不重要不紧急',
     task_type: '个人成长',
     assignee: 'dada',
+    email: 'dadadada_up@163.com',
+    start_date: '',
+    deadline: '',
     notes: '',
   })
   const [saving, setSaving] = useState(false)
@@ -24,23 +27,35 @@ const TaskModal = ({ task, isOpen, onClose, onSave }: TaskModalProps) => {
     if (task) {
       setFormData({
         name: task.name || '',
-        status: task.status || 'inbox',
+        status: task.status || '收集箱',
         priority: task.priority || 'P3 不重要不紧急',
         task_type: task.task_type || '个人成长',
         assignee: task.assignee || 'dada',
+        email: task.email || (task.assignee === 'dada' ? 'dadadada_up@163.com' : ''),
+        start_date: task.start_date || '',
+        deadline: task.deadline || '',
         notes: task.notes || '',
       })
     } else {
       setFormData({
         name: '',
-        status: 'inbox',
+        status: '收集箱',
         priority: 'P3 不重要不紧急',
         task_type: '个人成长',
         assignee: 'dada',
+        email: 'dadadada_up@163.com',
+        start_date: '',
+        deadline: '',
         notes: '',
       })
     }
   }, [task, isOpen])
+
+  // 负责人变化时自动填充邮箱
+  const handleAssigneeChange = (assignee: string) => {
+    const email = assignee === 'dada' ? 'dadadada_up@163.com' : ''
+    setFormData({ ...formData, assignee, email })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,75 +111,114 @@ const TaskModal = ({ task, isOpen, onClose, onSave }: TaskModalProps) => {
               />
             </div>
 
-            {/* 状态 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                状态
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as Task['status'] })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="inbox">📥 Inbox</option>
-                <option value="pending">⏸️ Pending</option>
-                <option value="暂停">⏸️ 暂停</option>
-                <option value="doing">🔄 进行中</option>
-                <option value="已完成">✅ 已完成</option>
-                <option value="已放弃">❌ 已放弃</option>
-              </select>
+            {/* 第一行：状态、优先级 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  状态：
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as Task['status'] })}
+                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="收集箱">📥 收集箱</option>
+                    <option value="暂停">⏸️ 暂停</option>
+                    <option value="已放弃">❌ 已放弃</option>
+                    <option value="进行中">🔵 进行中</option>
+                    <option value="已完成">✅ 已完成</option>
+                  </select>
+                </label>
+              </div>
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  优先级：
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="P0 重要紧急">P0 重要紧急</option>
+                    <option value="P1 重要不紧急">P1 重要不紧急</option>
+                    <option value="P2 紧急不重要">P2 紧急不重要</option>
+                    <option value="P3 不重要不紧急">P3 不重要不紧急</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
-            {/* 优先级 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                优先级
-              </label>
-              <select
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="P0 重要紧急">P0 重要紧急</option>
-                <option value="P1 重要不紧急">P1 重要不紧急</option>
-                <option value="P2 紧急不重要">P2 紧急不重要</option>
-                <option value="P3 不重要不紧急">P3 不重要不紧急</option>
-              </select>
+            {/* 第二行：任务类型、负责人 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  任务类型：
+                  <select
+                    value={formData.task_type}
+                    onChange={(e) => setFormData({ ...formData, task_type: e.target.value })}
+                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="家庭生活">家庭生活</option>
+                    <option value="社交">社交</option>
+                    <option value="个人成长">个人成长</option>
+                    <option value="工作">工作</option>
+                    <option value="健康">健康</option>
+                    <option value="理财投资">理财投资</option>
+                    <option value="保险副业">保险副业</option>
+                  </select>
+                </label>
+              </div>
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  负责人：
+                  <select
+                    value={formData.assignee}
+                    onChange={(e) => handleAssigneeChange(e.target.value)}
+                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="dada">dada</option>
+                    <option value="panpan">panpan</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
-            {/* 任务类型 */}
+            {/* 第三行：邮箱 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                任务类型
+              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                邮箱：
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="输入邮箱地址"
+                />
               </label>
-              <select
-                value={formData.task_type}
-                onChange={(e) => setFormData({ ...formData, task_type: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="家庭生活">家庭生活</option>
-                <option value="社交">社交</option>
-                <option value="个人成长">个人成长</option>
-                <option value="工作">工作</option>
-                <option value="健康">健康</option>
-                <option value="理财投资">理财投资</option>
-                <option value="保险副业">保险副业</option>
-              </select>
             </div>
 
-            {/* 负责人 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                负责人
-              </label>
-              <select
-                value={formData.assignee}
-                onChange={(e) => setFormData({ ...formData, assignee: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="dada">dada</option>
-                <option value="未分配">未分配</option>
-              </select>
+            {/* 第四行：开始日期、截止日期 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  开始日期：
+                  <input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </label>
+              </div>
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  截止日期：
+                  <input
+                    type="date"
+                    value={formData.deadline}
+                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </label>
+              </div>
             </div>
 
             {/* 备注 */}

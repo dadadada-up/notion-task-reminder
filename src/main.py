@@ -80,7 +80,7 @@ def get_notion_tasks(is_done=False):
                     {
                         "property": "状态",
                         "status": {
-                            "equals": "done"
+                            "equals": "已完成"
                         }
                     }
                 ]
@@ -89,20 +89,20 @@ def get_notion_tasks(is_done=False):
             # 查询今天待办的任务（新的查询逻辑）
             filter_conditions = {
                 "or": [
-                    # 1. 所有状态为 doing 的任务
+                    # 1. 所有状态为 进行中 的任务
                     {
                         "property": "状态",
                         "status": {
-                            "equals": "doing"
+                            "equals": "进行中"
                         }
                     },
-                    # 2. 状态为 inbox 且开始日期小于等于今日的任务
+                    # 2. 状态为 收集箱 且开始日期小于等于今日的任务
                     {
                         "and": [
                             {
                                 "property": "状态",
                                 "status": {
-                                    "equals": "inbox"
+                                    "equals": "收集箱"
                                 }
                             },
                             {
@@ -275,7 +275,7 @@ def format_message(tasks_data):
                 
                 # 按优先级和状态排序
                 priority_order = {'P0 重要紧急': 0, 'P1 重要不紧急': 1, 'P2 紧急不重要': 2, 'P3 不重要不紧急': 3}
-                status_order = {'inbox': 0, 'pedding': 1, 'doing': 2, 'done': 3}  # 修改为数据库中的实际状态值
+                status_order = {'收集箱': 0, '进行中': 1, '暂停': 2, '已完成': 3, '已放弃': 4}  # 使用数据库中的实际状态值
                 
                 # 对任务进行排序
                 try:

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Task } from '../types'
 import TaskCard from './TaskCard'
-import { Inbox, Clock, Play, CheckCircle2, XCircle, PauseCircle } from 'lucide-react'
+import { Inbox, CheckCircle2 } from 'lucide-react'
 
 interface TaskBoardProps {
   tasks: Task[]
@@ -13,12 +13,9 @@ const TaskBoard = ({ tasks, onTasksChange, onTaskClick }: TaskBoardProps) => {
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
 
   const columns = [
-    { id: 'inbox', title: '📥 Inbox', icon: Inbox, color: 'gray' },
-    { id: 'pending', title: '⏸️ Pending', icon: Clock, color: 'yellow' },
-    { id: '暂停', title: '⏸️ 暂停', icon: PauseCircle, color: 'orange' },
-    { id: 'doing', title: '🔄 进行中', icon: Play, color: 'blue' },
+    { id: '收集箱', title: '📥 收集箱', icon: Inbox, color: 'yellow' },
+    { id: '进行中', title: '🔵 进行中', icon: CheckCircle2, color: 'blue' },
     { id: '已完成', title: '✅ 已完成', icon: CheckCircle2, color: 'green' },
-    { id: '已放弃', title: '❌ 已放弃', icon: XCircle, color: 'red' },
   ]
 
   const getTasksByStatus = (status: string) => {
@@ -55,7 +52,7 @@ const TaskBoard = ({ tasks, onTasksChange, onTaskClick }: TaskBoardProps) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {columns.map((column) => {
         const columnTasks = getTasksByStatus(column.id)
         const Icon = column.icon

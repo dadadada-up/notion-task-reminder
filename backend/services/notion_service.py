@@ -84,23 +84,42 @@ class NotionService:
                 else:
                     payload["filter"] = {"and": filters}
             
-            # 使用重试机制发送请求
-            def make_request():
-                resp = requests.post(url, headers=self.headers, json=payload, timeout=10)
-                if resp.status_code != 200:
-                    raise Exception(f"Notion API error: {resp.text}")
-                return resp
+            # 使用重试机制发送请求，并处理分页
+            all_results = []
+            has_more = True
+            start_cursor = None
             
-            response = self._retry_request(make_request)
-            data = response.json()
-            results = data.get('results', [])
+            while has_more:
+                # 添加分页参数
+                current_payload = payload.copy()
+                if start_cursor:
+                    current_payload["start_cursor"] = start_cursor
+                
+                def make_request():
+                    resp = requests.post(url, headers=self.headers, json=current_payload, timeout=10)
+                    if resp.status_code != 200:
+                        raise Exception(f"Notion API error: {resp.text}")
+                    return resp
+                
+                response = self._retry_request(make_request)
+                data = response.json()
+                
+                # 添加当前页的结果
+                all_results.extend(data.get('results', []))
+                
+                # 检查是否还有更多数据
+                has_more = data.get('has_more', False)
+                start_cursor = data.get('next_cursor')
+                
+                print(f"已获取 {len(all_results)} 个任务，has_more: {has_more}")
             
             # 格式化任务数据
             tasks = []
-            for result in results:
+            for result in all_results:
                 task = self._format_task(result)
                 tasks.append(task)
             
+            print(f"总共获取到 {len(tasks)} 个任务")
             return tasks
             
         except Exception as e:
@@ -158,6 +177,21 @@ class NotionService:
                     "select": {"name": task_data['task_type']}
                 }
             
+            if 'start_date' in task_data and task_data['start_date']:
+                properties['开始日期'] = {
+                    "date": {"start": task_data['start_date']}
+                }
+            
+            if 'deadline' in task_data and task_data['deadline']:
+                properties['截止日期'] = {
+                    "date": {"start": task_data['deadline']}
+                }
+            
+            if 'notes' in task_data and task_data['notes']:
+                properties['备注'] = {
+                    "rich_text": [{"text": {"content": task_data['notes']}}]
+                }
+            
             payload = {
                 "parent": {"database_id": self.database_id},
                 "properties": properties
@@ -208,6 +242,30 @@ class NotionService:
                     "select": {"name": updates['task_type']}
                 }
             
+            if 'start_date' in updates:
+                if updates['start_date']:
+                    properties['开始日期'] = {
+                        "date": {"start": updates['start_date']}
+                    }
+                else:
+                    properties['开始日期'] = {"date": None}
+            
+            if 'deadline' in updates:
+                if updates['deadline']:
+                    properties['截止日期'] = {
+                        "date": {"start": updates['deadline']}
+                    }
+                else:
+                    properties['截止日期'] = {"date": None}
+            
+            if 'notes' in updates:
+                if updates['notes']:
+                    properties['备注'] = {
+                        "rich_text": [{"text": {"content": updates['notes']}}]
+                    }
+                else:
+                    properties['备注'] = {"rich_text": []}
+            
             payload = {"properties": properties}
             
             response = requests.patch(url, headers=self.headers, json=payload)
@@ -237,7 +295,7 @@ class NotionService:
                 filter_conditions = {
                     "and": [{
                         "property": "状态",
-                        "status": {"equals": "done"}
+                        "status": {"equals": "已完成"}
                     }]
                 }
             else:
@@ -246,13 +304,13 @@ class NotionService:
                     "or": [
                         {
                             "property": "状态",
-                            "status": {"equals": "doing"}
+                            "status": {"equals": "进行中"}
                         },
                         {
                             "and": [
                                 {
                                     "property": "状态",
-                                    "status": {"equals": "inbox"}
+                                    "status": {"equals": "收集箱"}
                                 },
                                 {
                                     "property": "开始日期",
@@ -334,7 +392,7 @@ class NotionService:
                     stats['urgent_tasks'] += 1
                 
                 # 统计今日完成
-                if status == 'done':
+                if status == '已完成':
                     last_edited = task.get('last_edited_time')
                     if last_edited:
                         try:
@@ -365,9 +423,9 @@ class NotionService:
         # 获取状态
         status_obj = properties.get('状态', {})
         if status_obj and status_obj.get('status'):
-            status = status_obj.get('status', {}).get('name', 'inbox')
+            status = status_obj.get('status', {}).get('name', '收集箱')
         else:
-            status = 'inbox'
+            status = '收集箱'
         
         # 获取负责人
         assignee_obj = properties.get('负责人', {})
@@ -400,6 +458,44 @@ class NotionService:
         blocked_by_relations = properties.get('被阻止', {}).get('relation', []) if properties.get('被阻止') else []
         blocked_by_ids = [b.get('id') for b in blocked_by_relations if b and b.get('id')]
         
+        # 获取开始日期
+        start_date_obj = properties.get('开始日期', {})
+        start_date = None
+        if start_date_obj and start_date_obj.get('date'):
+            start_date = start_date_obj.get('date', {}).get('start')
+        
+        # 获取截止日期
+        deadline_obj = properties.get('截止日期', {})
+        deadline = None
+        if deadline_obj and deadline_obj.get('date'):
+            deadline = deadline_obj.get('date', {}).get('start')
+        
+        # 获取备注
+        notes_obj = properties.get('备注', {})
+        notes = None
+        if notes_obj and notes_obj.get('rich_text'):
+            notes_list = notes_obj.get('rich_text', [])
+            if notes_list:
+                notes = ''.join([text.get('plain_text', '') for text in notes_list])
+        
+        # 获取任务完成时间
+        completed_time_obj = properties.get('任务完成时间', {})
+        completed_time = None
+        if completed_time_obj and completed_time_obj.get('date'):
+            completed_time = completed_time_obj.get('date', {}).get('start')
+        
+        # 获取电子邮件
+        email_obj = properties.get('电子邮件', {})
+        email = None
+        if email_obj and email_obj.get('email'):
+            email = email_obj.get('email')
+        
+        # 获取唯一ID
+        unique_id_obj = properties.get('ID', {})
+        unique_id = None
+        if unique_id_obj and unique_id_obj.get('unique_id'):
+            unique_id = unique_id_obj.get('unique_id', {}).get('prefix') + '-' + str(unique_id_obj.get('unique_id', {}).get('number', ''))
+        
         return {
             'id': result.get('id'),
             'name': name,
@@ -412,5 +508,11 @@ class NotionService:
             'blocked_by_ids': blocked_by_ids,
             'created_time': result.get('created_time'),
             'last_edited_time': result.get('last_edited_time'),
-            'url': result.get('url')
+            'url': result.get('url'),
+            'start_date': start_date,
+            'deadline': deadline,
+            'completed_time': completed_time,
+            'email': email,
+            'unique_id': unique_id,
+            'notes': notes
         }

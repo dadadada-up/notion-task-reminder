@@ -27,7 +27,7 @@ export const createTask = async (
 
 export const updateTask = async (
   id: string,
-  updates: Partial<Pick<Task, 'status' | 'priority' | 'assignee' | 'task_type' | 'name'>>
+  updates: Partial<Task>
 ): Promise<Task> => {
   const response = await axios.put(`${API_BASE_URL}/tasks/${id}`, updates)
   return response.data.data

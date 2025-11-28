@@ -1,7 +1,7 @@
 export interface Task {
   id: string
   name: string
-  status: 'inbox' | 'pedding' | 'doing' | 'done'
+  status: '收集箱' | '暂停' | '已放弃' | '进行中' | '已完成'
   assignee: string
   priority: string
   task_type: string
@@ -11,6 +11,12 @@ export interface Task {
   created_time: string
   last_edited_time: string
   url: string
+  start_date?: string
+  deadline?: string
+  completed_time?: string
+  email?: string
+  unique_id?: string
+  notes?: string
 }
 
 export interface Stats {
