@@ -100,12 +100,20 @@ function App() {
     setIsModalOpen(true)
   }
 
-  // 根据状态筛选任务
+  // 根据状态筛选任务，并过滤掉子任务（只显示主任务）
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => task.status === activeStatus)
+    return tasks.filter(task => {
+      // 只显示匹配状态的任务
+      if (task.status !== activeStatus) return false
+      
+      // 过滤掉子任务（有parent_ids的任务）
+      if (task.parent_ids && task.parent_ids.length > 0) return false
+      
+      return true
+    })
   }, [tasks, activeStatus])
 
-  // 统计各状态任务数量
+  // 统计各状态任务数量（只统计主任务，不包括子任务）
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
       '收集箱': 0,
@@ -115,6 +123,9 @@ function App() {
       '已放弃': 0,
     }
     tasks.forEach(task => {
+      // 只统计主任务（没有parent_ids的任务）
+      if (task.parent_ids && task.parent_ids.length > 0) return
+      
       if (counts[task.status] !== undefined) {
         counts[task.status]++
       }

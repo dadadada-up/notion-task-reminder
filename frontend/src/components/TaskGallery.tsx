@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Task } from '../types'
 import { Calendar, User, Flag, Tag, CheckCircle2 } from 'lucide-react'
 import { updateTask, fetchTasks } from '../api'
+import { formatDate, formatDateTime } from '../utils/dateFormat'
 
 interface TaskGalleryProps {
   tasks: Task[]
@@ -59,10 +60,6 @@ const TaskGallery = ({ tasks, onTaskClick, onTaskUpdate }: TaskGalleryProps) => 
     } finally {
       setCompletingTaskId(null)
     }
-  }
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return null
-    return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
   }
 
   const getStatusColor = (status: string) => {
@@ -160,7 +157,7 @@ const TaskGallery = ({ tasks, onTaskClick, onTaskUpdate }: TaskGalleryProps) => 
               {task.completed_time && (
                 <div className="flex items-center gap-2 text-xs text-green-600">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>完成: {formatDate(task.completed_time)}</span>
+                  <span>{formatDateTime(task.completed_time)}</span>
                 </div>
               )}
             </div>

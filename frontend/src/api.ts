@@ -45,3 +45,13 @@ export const sendNotification = async (
   const response = await axios.post(`${API_BASE_URL}/notify`, { type, channels })
   return response.data
 }
+
+export const getSchedules = async (): Promise<any[]> => {
+  const response = await axios.get(`${API_BASE_URL}/schedule`)
+  return response.data.data
+}
+
+export const saveSchedules = async (schedules: any[]): Promise<any> => {
+  const response = await axios.post(`${API_BASE_URL}/schedule`, { schedules })
+  return response.data
+}

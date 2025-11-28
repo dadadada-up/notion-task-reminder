@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Task } from '../types'
+import TaskSelector from './TaskSelector'
 
 interface TaskModalProps {
   task?: Task | null
@@ -40,16 +41,16 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         parent_ids: task.parent_ids || [],
       })
     } else if (parentTask) {
-      // 创建子任务，继承父任务属性
+      // 创建子任务，继承父任务所有属性（除了任务名称）
       setFormData({
         name: '',
-        status: '收集箱',
+        status: parentTask.status || '收集箱',
         priority: parentTask.priority || 'P3 不重要不 紧急',
         task_type: parentTask.task_type || '个人成长',
         assignee: parentTask.assignee || 'dada',
-        email: parentTask.assignee === 'dada' ? 'dadadada_up@163.com' : '',
-        start_date: '',
-        deadline: '',
+        email: parentTask.email || (parentTask.assignee === 'dada' ? 'dadadada_up@163.com' : ''),
+        start_date: parentTask.start_date || '',
+        deadline: parentTask.deadline || '',
         notes: '',
         parent_ids: [parentTask.id],
       })
@@ -240,20 +241,49 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
             </div>
 
             {/* 关系字段 - 上级项目 */}
-            {formData.parent_ids && formData.parent_ids.length > 0 && (
+            {parentTask ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  上级项目（继承自父任务）
+                </label>
+                <TaskSelector
+                  selectedIds={formData.parent_ids}
+                  onSelect={(ids) => setFormData({ ...formData, parent_ids: ids })}
+                  excludeIds={task?.id ? [task.id] : []}
+                  label=""
+                  placeholder="搜索上级项目..."
+                  multiple={false}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 此任务是子任务，可以修改关联的上级项目
+                </p>
+              </div>
+            ) : task?.parent_ids && task.parent_ids.length > 0 ? (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   上级项目
                 </label>
-                <div className="flex flex-wrap gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  {formData.parent_ids.map((parentId) => (
-                    <span key={parentId} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                      {parentId.substring(0, 8)}...
-                    </span>
-                  ))}
-                </div>
+                <TaskSelector
+                  selectedIds={formData.parent_ids}
+                  onSelect={(ids) => setFormData({ ...formData, parent_ids: ids })}
+                  excludeIds={task?.id ? [task.id] : []}
+                  label=""
+                  placeholder="搜索上级项目..."
+                  multiple={false}
+                />
+              </div>
+            ) : (
+              <div>
+                <TaskSelector
+                  selectedIds={formData.parent_ids}
+                  onSelect={(ids) => setFormData({ ...formData, parent_ids: ids })}
+                  excludeIds={task?.id ? [task.id] : []}
+                  label="上级项目（可选）"
+                  placeholder="搜索并选择上级项目..."
+                  multiple={false}
+                />
                 <p className="text-xs text-gray-500 mt-1">
-                  此任务是子任务，将关联到上级项目
+                  💡 选择上级项目后，此任务将成为子任务
                 </p>
               </div>
             )}

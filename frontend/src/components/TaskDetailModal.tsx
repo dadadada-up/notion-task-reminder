@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Calendar, User, Flag, Tag, Clock, CheckCircle2, Link as LinkIcon, Edit, Mail, Hash, Plus } from 'lucide-react'
 import { Task } from '../types'
 import { fetchTasks, updateTask } from '../api'
+import { formatDate, formatDateTime } from '../utils/dateFormat'
 
 interface TaskDetailModalProps {
   task: Task | null
@@ -13,14 +14,23 @@ interface TaskDetailModalProps {
 
 const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: TaskDetailModalProps) => {
   const [childTasks, setChildTasks] = useState<Task[]>([])
+  const [parentTasks, setParentTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (task && task.child_ids && task.child_ids.length > 0) {
-      loadChildTasks()
-    } else {
-      setChildTasks([])
+    if (task) {
+      if (task.child_ids && task.child_ids.length > 0) {
+        loadChildTasks()
+      } else {
+        setChildTasks([])
+      }
+      
+      if (task.parent_ids && task.parent_ids.length > 0) {
+        loadParentTasks()
+      } else {
+        setParentTasks([])
+      }
     }
   }, [task])
 
@@ -36,6 +46,18 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
       console.error('Failed to load child tasks:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadParentTasks = async () => {
+    if (!task || !task.parent_ids || task.parent_ids.length === 0) return
+    
+    try {
+      const allTasks = await fetchTasks()
+      const parents = allTasks.filter(t => task.parent_ids.includes(t.id))
+      setParentTasks(parents)
+    } catch (error) {
+      console.error('Failed to load parent tasks:', error)
     }
   }
 
@@ -64,28 +86,6 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
   }
 
   if (!isOpen || !task) return null
-
-  const formatDateTime = (dateStr?: string) => {
-    if (!dateStr) return '未设置'
-    const date = new Date(dateStr)
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '未设置'
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    })
-  }
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -179,14 +179,14 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
               <div className="flex items-center gap-3">
                 <Calendar className="w-4 h-4 text-gray-400" />
                 <span className="text-sm font-medium text-gray-500 w-24">开始日期：</span>
-                <span className="text-sm text-gray-900">{formatDate(task.start_date)}</span>
+                <span className="text-sm text-gray-900">{formatDate(task.start_date) || '未设置'}</span>
               </div>
               
               {/* 截止日期 */}
               <div className="flex items-center gap-3">
                 <Clock className="w-4 h-4 text-gray-400" />
                 <span className="text-sm font-medium text-gray-500 w-24">截止日期：</span>
-                <span className="text-sm text-gray-900">{formatDate(task.deadline)}</span>
+                <span className="text-sm text-gray-900">{formatDate(task.deadline) || '未设置'}</span>
               </div>
               
               {/* 完成时间 */}
@@ -202,7 +202,7 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
               <div className="flex items-center gap-3">
                 <Clock className="w-4 h-4 text-gray-400" />
                 <span className="text-sm font-medium text-gray-500 w-24">创建时间：</span>
-                <span className="text-sm text-gray-900">{formatDateTime(task.created_time)}</span>
+                <span className="text-sm text-gray-900">{formatDateTime(task.created_time) || '未知'}</span>
               </div>
               
               {/* 最后编辑 */}
@@ -232,11 +232,19 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-2">上级项目 ({task.parent_ids.length})</h4>
                   <div className="flex flex-wrap gap-2">
-                    {task.parent_ids.map((parentId) => (
-                      <span key={parentId} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
-                        {parentId.substring(0, 8)}...
-                      </span>
-                    ))}
+                    {parentTasks.length > 0 ? (
+                      parentTasks.map((parent) => (
+                        <span key={parent.id} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
+                          {parent.name}
+                        </span>
+                      ))
+                    ) : (
+                      task.parent_ids.map((parentId) => (
+                        <span key={parentId} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
+                          {parentId.substring(0, 8)}...
+                        </span>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
@@ -267,7 +275,8 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
                       {childTasks.map((child) => (
                         <div
                           key={child.id}
-                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors relative"
+                          onClick={() => onEdit && onEdit(child)}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors relative cursor-pointer"
                         >
                           {/* 进行中的子任务显示复选框 */}
                           {child.status === '进行中' && (
@@ -283,10 +292,10 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
                           <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(child.status)}`}>
                             {child.status}
                           </span>
-                          <span className="flex-1 text-sm text-gray-900">{child.name}</span>
+                          <span className="flex-1 text-sm text-gray-900 hover:text-purple-600 transition-colors">{child.name}</span>
                           {child.deadline && (
                             <span className="text-xs text-gray-500">
-                              截止: {formatDate(child.deadline)}
+                              {formatDate(child.deadline)}
                             </span>
                           )}
                         </div>

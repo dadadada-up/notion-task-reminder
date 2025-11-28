@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Clock, Save, Plus, Trash2 } from 'lucide-react'
+import { getSchedules, saveSchedules } from '../api'
 
 interface ScheduleItem {
   id: string
@@ -15,24 +16,66 @@ interface ScheduleSettingsProps {
 }
 
 const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
-  const [schedules, setSchedules] = useState<ScheduleItem[]>([
-    {
-      id: '1',
-      type: 'daily_todo',
-      time: '09:00',
-      enabled: true,
-      customMessage: '早上好！今天的任务已为您准备好 💪'
-    },
-    {
-      id: '2',
-      type: 'daily_done',
-      time: '21:00',
-      enabled: true,
-      customMessage: '晚上好！今天辛苦了，看看完成了多少任务 ✨'
-    }
-  ])
-
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([])
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      loadSchedules()
+    }
+  }, [isOpen])
+
+  const loadSchedules = async () => {
+    setLoading(true)
+    try {
+      const data = await getSchedules()
+      // 确保data是数组
+      if (Array.isArray(data)) {
+        setSchedules(data)
+      } else {
+        console.error('Invalid schedule data:', data)
+        // 使用默认配置
+        setSchedules([
+          {
+            id: '1',
+            type: 'daily_todo',
+            time: '09:00',
+            enabled: true,
+            customMessage: '早上好！今天的任务已为您准备好 💪'
+          },
+          {
+            id: '2',
+            type: 'daily_done',
+            time: '21:00',
+            enabled: true,
+            customMessage: '晚上好！今天辛苦了，看看完成了多少任务 ✨'
+          }
+        ])
+      }
+    } catch (error) {
+      console.error('Failed to load schedules:', error)
+      // 加载失败时使用默认配置
+      setSchedules([
+        {
+          id: '1',
+          type: 'daily_todo',
+          time: '09:00',
+          enabled: true,
+          customMessage: '早上好！今天的任务已为您准备好 💪'
+        },
+        {
+          id: '2',
+          type: 'daily_done',
+          time: '21:00',
+          enabled: true,
+          customMessage: '晚上好！今天辛苦了，看看完成了多少任务 ✨'
+        }
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const addSchedule = () => {
     const newSchedule: ScheduleItem = {
@@ -56,15 +99,16 @@ const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
   const handleSave = async () => {
     setSaving(true)
     try {
-      // TODO: 调用后端API保存配置
-      console.log('保存定时任务配置:', schedules)
+      const result = await saveSchedules(schedules)
       
-      // 模拟保存
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      alert('定时任务配置已保存！')
-      onClose()
+      if (result.success) {
+        alert('✅ 定时任务配置已保存！\n\nGitHub Actions workflow 已自动更新，定时任务将按配置运行。')
+        onClose()
+      } else {
+        alert('保存失败：' + result.error)
+      }
     } catch (error) {
+      console.error('Failed to save schedules:', error)
       alert('保存失败：' + error)
     } finally {
       setSaving(false)
@@ -106,6 +150,11 @@ const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
 
           {/* Content */}
           <div className="p-6 max-h-[60vh] overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+              </div>
+            ) : (
             <div className="space-y-4">
               {schedules.map((schedule) => (
                 <div
@@ -204,19 +253,20 @@ const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
                 <Plus className="w-5 h-5" />
                 添加定时任务
               </button>
-            </div>
 
-            {/* 说明 */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">💡 使用说明</h4>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• <strong>今日待办</strong>：发送当天需要处理的任务列表</li>
-                <li>• <strong>今日完成</strong>：发送当天已完成的任务统计</li>
-                <li>• 可以设置多个定时任务，在不同时间发送不同类型的消息</li>
-                <li>• 自定义消息会显示在推送通知的开头</li>
-                <li>• 取消勾选可以临时禁用某个定时任务</li>
-              </ul>
+              {/* 说明 */}
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="text-sm font-medium text-blue-900 mb-2">💡 使用说明</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• <strong>今日待办</strong>：发送当天需要处理的任务列表</li>
+                  <li>• <strong>今日完成</strong>：发送当天已完成的任务统计</li>
+                  <li>• 可以设置多个定时任务，在不同时间发送不同类型的消息</li>
+                  <li>• 自定义消息会显示在推送通知的开头</li>
+                  <li>• 取消勾选可以临时禁用某个定时任务</li>
+                </ul>
+              </div>
             </div>
+            )}
           </div>
 
           {/* Footer */}

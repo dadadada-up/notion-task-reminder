@@ -1,0 +1,16 @@
+[
+  {
+    "customMessage": "今日待办事项如下：",
+    "enabled": true,
+    "id": "1",
+    "time": "08:00",
+    "type": "daily_todo"
+  },
+  {
+    "id": "1764340858307",
+    "type": "daily_done",
+    "time": "21:00",
+    "enabled": true,
+    "customMessage": "今日完成事项如下："
+  }
+]

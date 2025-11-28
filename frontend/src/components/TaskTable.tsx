@@ -1,5 +1,6 @@
 import { Task } from '../types'
 import { ExternalLink } from 'lucide-react'
+import { formatDate as formatDateUtil } from '../utils/dateFormat'
 
 interface TaskTableProps {
   tasks: Task[]
@@ -85,7 +86,7 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
 
     return (
       <span className={className}>
-        {date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
+        {formatDateUtil(dateStr)}
       </span>
     )
   }

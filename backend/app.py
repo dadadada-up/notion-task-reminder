@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from services.notion_service import NotionService
 from services.push_service import PushService
 from services.email_service import EmailService
+from services.schedule_service import ScheduleService
 
 app = Flask(__name__, static_folder='../frontend/dist')
 CORS(app)
@@ -29,6 +30,7 @@ CORS(app)
 notion_service = NotionService()
 push_service = PushService()
 email_service = EmailService()
+schedule_service = ScheduleService()
 
 # ==================== API Routes ====================
 
@@ -206,12 +208,52 @@ def send_notification():
             'error': str(e)
         }), 500
 
+@app.route('/api/schedule', methods=['GET', 'POST'])
+def manage_schedule():
+    """
+    管理定时任务配置
+    GET: 获取当前配置
+    POST: 保存新配置
+    """
+    try:
+        if request.method == 'GET':
+            # 获取配置
+            schedules = schedule_service.get_schedules()
+            return jsonify({
+                'success': True,
+                'data': schedules
+            })
+        else:
+            # 保存配置
+            data = request.get_json()
+            schedules = data.get('schedules', [])
+            
+            result = schedule_service.save_schedules(schedules)
+            
+            if result.get('success'):
+                return jsonify(result)
+            else:
+                return jsonify(result), 500
+                
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # ==================== Frontend Routes ====================
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
     """服务前端静态文件"""
+    # 不要拦截API请求
+    if path.startswith('api/'):
+        return jsonify({
+            'success': False,
+            'error': 'API endpoint not found'
+        }), 404
+    
     if path and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
     else:
