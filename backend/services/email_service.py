@@ -1,0 +1,438 @@
+"""
+Email Service - 邮件推送服务
+支持 HTML 富文本邮件
+"""
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.header import Header
+import os
+from datetime import datetime
+from typing import List, Dict
+
+class EmailService:
+    def __init__(self):
+        self.enabled = os.environ.get('EMAIL_ENABLED', 'false').lower() == 'true'
+        self.smtp_server = os.environ.get('EMAIL_SMTP_SERVER', 'smtp.163.com')
+        self.smtp_port = int(os.environ.get('EMAIL_SMTP_PORT', '465'))
+        self.sender = os.environ.get('EMAIL_SENDER', '')
+        self.password = os.environ.get('EMAIL_PASSWORD', '')
+        self.receiver = os.environ.get('EMAIL_RECEIVER', '')
+    
+    def send_notification(self, tasks: List[Dict], is_done: bool = False) -> Dict:
+        """发送邮件通知"""
+        try:
+            if not self.enabled:
+                return {
+                    'success': False,
+                    'error': 'Email service not enabled'
+                }
+            
+            if not all([self.sender, self.password, self.receiver]):
+                return {
+                    'success': False,
+                    'error': 'Email configuration incomplete'
+                }
+            
+            # 生成邮件内容
+            subject, html_content = self._generate_email_content(tasks, is_done)
+            
+            # 创建邮件
+            message = MIMEMultipart('alternative')
+            message['From'] = Header(f"Notion Task Manager <{self.sender}>")
+            message['To'] = Header(self.receiver)
+            message['Subject'] = Header(subject, 'utf-8')
+            
+            # 添加 HTML 内容
+            html_part = MIMEText(html_content, 'html', 'utf-8')
+            message.attach(html_part)
+            
+            # 发送邮件
+            if self.smtp_port == 465:
+                # SSL
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port)
+            else:
+                # TLS
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+                server.starttls()
+            
+            server.login(self.sender, self.password)
+            server.sendmail(self.sender, [self.receiver], message.as_string())
+            server.quit()
+            
+            return {
+                'success': True,
+                'message': 'Email sent successfully'
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _generate_email_content(self, tasks: List[Dict], is_done: bool) -> tuple:
+        """生成邮件内容"""
+        
+        today = datetime.now().strftime('%Y-%m-%d')
+        weekday = datetime.now().strftime('%A')
+        weekday_cn = {
+            'Monday': '星期一',
+            'Tuesday': '星期二',
+            'Wednesday': '星期三',
+            'Thursday': '星期四',
+            'Friday': '星期五',
+            'Saturday': '星期六',
+            'Sunday': '星期日'
+        }.get(weekday, weekday)
+        
+        if is_done:
+            subject = f"✅ 今日完成任务总结 - {today}"
+            title = "今日完成任务"
+            emoji = "✅"
+            color_primary = "#10b981"
+            color_gradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+        else:
+            subject = f"📋 今日待办任务提醒 - {today}"
+            title = "今日待办任务"
+            emoji = "📋"
+            color_primary = "#667eea"
+            color_gradient = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+        
+        # 按负责人分组
+        tasks_by_assignee = {}
+        for task in tasks:
+            assignee = task.get('assignee', '未分配')
+            if assignee not in tasks_by_assignee:
+                tasks_by_assignee[assignee] = []
+            tasks_by_assignee[assignee].append(task)
+        
+        # 生成 HTML
+        html = f"""
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{subject}</title>
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background-color: #f3f4f6;
+        }}
+        .email-container {{
+            max-width: 600px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }}
+        .header {{
+            background: {color_gradient};
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }}
+        .header .date {{
+            margin: 12px 0 0 0;
+            font-size: 16px;
+            opacity: 0.95;
+        }}
+        .content {{
+            padding: 30px;
+        }}
+        .greeting {{
+            font-size: 18px;
+            color: #1f2937;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }}
+        .assignee-section {{
+            margin-bottom: 35px;
+        }}
+        .assignee-header {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }}
+        .assignee-name {{
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+        }}
+        .assignee-count {{
+            font-size: 14px;
+            color: #6b7280;
+            background: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+        }}
+        .task-list {{
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }}
+        .task-item {{
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-left: 4px solid {color_primary};
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }}
+        .task-item:hover {{
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }}
+        .task-item.priority-p0 {{
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }}
+        .task-item.priority-p1 {{
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }}
+        .task-item.priority-p2 {{
+            border-left-color: #8b5cf6;
+            background: #faf5ff;
+        }}
+        .task-item.priority-p3 {{
+            border-left-color: #6b7280;
+            background: #f9fafb;
+        }}
+        .task-number {{
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            text-align: center;
+            background: {color_primary};
+            color: white;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 10px;
+        }}
+        .task-name {{
+            font-size: 16px;
+            font-weight: 500;
+            color: #111827;
+            margin-bottom: 10px;
+        }}
+        .task-tags {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }}
+        .tag {{
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 12px;
+            font-weight: 500;
+        }}
+        .tag-status {{
+            background: #dbeafe;
+            color: #1e40af;
+        }}
+        .tag-type {{
+            background: #d1fae5;
+            color: #065f46;
+        }}
+        .tag-priority {{
+            background: #fee2e2;
+            color: #991b1b;
+        }}
+        .stats-box {{
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 30px;
+        }}
+        .stats-title {{
+            font-size: 18px;
+            font-weight: 600;
+            color: #0c4a6e;
+            margin: 0 0 15px 0;
+        }}
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }}
+        .stat-item {{
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }}
+        .stat-value {{
+            font-size: 24px;
+            font-weight: 700;
+            color: {color_primary};
+            margin-bottom: 4px;
+        }}
+        .stat-label {{
+            font-size: 13px;
+            color: #6b7280;
+        }}
+        .footer {{
+            background: #f9fafb;
+            padding: 25px;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }}
+        .footer p {{
+            margin: 5px 0;
+            font-size: 13px;
+            color: #6b7280;
+        }}
+        .footer a {{
+            color: {color_primary};
+            text-decoration: none;
+        }}
+        .empty-state {{
+            text-align: center;
+            padding: 60px 30px;
+        }}
+        .empty-state-icon {{
+            font-size: 64px;
+            margin-bottom: 20px;
+        }}
+        .empty-state-text {{
+            font-size: 18px;
+            color: #6b7280;
+        }}
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>{emoji} {title}</h1>
+            <p class="date">{today} {weekday_cn}</p>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">
+                {'🎉 今天又是充实的一天！' if is_done else '☀️ 美好的一天，从完成任务开始！'}
+            </div>
+"""
+        
+        if not tasks:
+            html += """
+            <div class="empty-state">
+                <div class="empty-state-icon">🎊</div>
+                <p class="empty-state-text">暂无任务，好好休息一下吧！</p>
+            </div>
+"""
+        else:
+            # 生成任务列表
+            for assignee, assignee_tasks in tasks_by_assignee.items():
+                html += f"""
+            <div class="assignee-section">
+                <div class="assignee-header">
+                    <span class="assignee-name">👤 {assignee}</span>
+                    <span class="assignee-count">共 {len(assignee_tasks)} 条</span>
+                </div>
+                <ul class="task-list">
+"""
+                
+                # 排序任务
+                priority_order = {'P0 重要紧急': 0, 'P1 重要不紧急': 1, 'P2 紧急不重要': 2, 'P3 不重要不紧急': 3}
+                assignee_tasks.sort(key=lambda x: priority_order.get(x.get('priority', 'P3'), 999))
+                
+                for idx, task in enumerate(assignee_tasks, 1):
+                    priority = task.get('priority', 'P3 不重要不紧急')
+                    priority_key = priority.split()[0].lower() if ' ' in priority else 'p3'
+                    status = task.get('status', 'unknown')
+                    task_type = task.get('task_type', '未分类')
+                    
+                    html += f"""
+                    <li class="task-item priority-{priority_key}">
+                        <div class="task-name">
+                            <span class="task-number">{idx}</span>
+                            {task.get('name', '未命名任务')}
+                        </div>
+                        <div class="task-tags">
+                            <span class="tag tag-status">{status}</span>
+                            <span class="tag tag-type">{task_type}</span>
+                            <span class="tag tag-priority">{priority.split()[0]}</span>
+                        </div>
+                    </li>
+"""
+                
+                html += """
+                </ul>
+            </div>
+"""
+            
+            # 添加统计信息
+            if is_done:
+                total_tasks = len(tasks)
+                priorities = {'P0': 0, 'P1': 0, 'P2': 0, 'P3': 0}
+                task_types = {}
+                
+                for task in tasks:
+                    priority = task.get('priority', 'P3')
+                    priority_key = priority.split()[0] if ' ' in priority else priority
+                    priorities[priority_key] = priorities.get(priority_key, 0) + 1
+                    
+                    task_type = task.get('task_type', '未分类')
+                    task_types[task_type] = task_types.get(task_type, 0) + 1
+                
+                important_count = priorities['P0'] + priorities['P1']
+                urgent_count = priorities['P0'] + priorities['P2']
+                
+                html += f"""
+            <div class="stats-box">
+                <h3 class="stats-title">📊 今日统计</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">{total_tasks}</div>
+                        <div class="stat-label">完成任务</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{important_count}</div>
+                        <div class="stat-label">重要任务</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{urgent_count}</div>
+                        <div class="stat-label">紧急任务</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{len(task_types)}</div>
+                        <div class="stat-label">任务类型</div>
+                    </div>
+                </div>
+            </div>
+"""
+        
+        html += f"""
+        </div>
+        
+        <div class="footer">
+            <p><strong>Notion Task Manager</strong></p>
+            <p>自动发送于 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return subject, html

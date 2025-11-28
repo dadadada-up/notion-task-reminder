@@ -1,127 +1,394 @@
-# Notion 任务提醒助手
+# 🚀 Notion Task Manager
 
-基于 Notion API 的任务提醒工具，支持多渠道消息推送（微信、WxPusher）。
+基于 Notion API 的现代化任务管理系统，支持 Web 界面、多渠道推送提醒和自动化工作流。
 
-## 功能特性
+<div align="center">
 
-- 📅 每日任务提醒
-  - 早上 8:00：推送今日待办任务
-  - 晚上 22:00：推送今日已完成任务总结
+![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![React](https://img.shields.io/badge/React-18.2-61dafb.svg)
+![Flask](https://img.shields.io/badge/Flask-3.0-black.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-- 🔄 任务关联展示
-  - 上级项目关联
-  - 子任务状态
-  - 任务依赖关系（阻止/被阻止）
+</div>
 
-- 📱 多渠道推送
-  - 微信（PushPlus）
-  - WxPusher
+---
 
-## 环境要求
+## ✨ 核心特性
 
-- Python 3.9+
-- 依赖包：
-  ```
-  requests==2.31.0
-  pytz==2024.1
-  ```
+### 📱 现代化 Web 界面
+- **看板视图**：拖拽式任务管理，支持 Inbox/Pending/Doing/Done 状态切换
+- **实时统计**：任务数量、优先级分布、类型统计一目了然
+- **响应式设计**：完美适配桌面端，流畅的用户体验
+- **美观 UI**：基于 TailwindCSS + Lucide Icons 的现代化设计
 
-## 配置说明
+### 🔔 智能推送提醒
+- **PushPlus 微信推送**：精美的 HTML 模板，优先级颜色编码
+- **邮件提醒**：富文本邮件，支持 163/QQ/Gmail 等主流邮箱
+- **双时段提醒**：
+  - 早上 8:00 - 今日待办任务
+  - 晚上 22:00 - 今日完成总结
 
-### 1. 环境变量
+### ⚙️ 自动化工作流
+- **GitHub Actions**：无需服务器，云端自动执行
+- **定时任务**：精确到分钟的定时提醒
+- **手动触发**：支持随时手动发送通知
 
-```bash
-# Notion配置
-NOTION_TOKEN="your_notion_token"
-DATABASE_ID="your_database_id"
+### 🎯 任务管理功能
+- **多维度筛选**：按状态、负责人、优先级、类型筛选
+- **关系管理**：支持父子任务、阻止关系
+- **优先级系统**：四象限时间管理（P0-P3）
+- **任务统计**：完成率、重要/紧急任务统计
 
-# 消息推送配置
-PUSHPLUS_TOKEN="your_pushplus_token"
-WXPUSHER_TOKEN="your_wxpusher_token"
-WXPUSHER_UID="your_wxpusher_uid"
+---
 
-# 运行配置
-REMINDER_TYPE="daily_todo/daily_done"  # 待办任务/已完成任务
-SEND_TIME="HH:MM"                      # 发送时间
-ACTION_TYPE="prepare/send"             # 准备/发送
+## 🖼️ 界面预览
+
+### Web 看板界面
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Notion Task Manager                    [今日] [本周] [全部]    │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   📥 Inbox   │  │  🔄 Doing    │  │  ✅ Done     │          │
+│  │   (3 tasks)  │  │  (5 tasks)   │  │  (8 tasks)   │          │
+│  ├──────────────┤  ├──────────────┤  ├──────────────┤          │
+│  │ 任务卡片...  │  │ 任务卡片...  │  │ 任务卡片...  │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                                                                  │
+│  📊 统计面板：总任务 16 | 今日完成 8 | 重要 3 | 紧急 2         │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Notion数据库要求
+### 推送消息示例
 
-数据库需要包含以下属性：
-- 任务名称（标题）
-- 负责人（单选）
-- 状态（状态）
-- 四象限（单选）
-- 任务类型（单选）
-- 上级项目（关联）
-- 子级项目（关联）
-- 正在阻止（关联）
-- 被阻止（关联）
-- 开始日期（日期）
-- 上次编辑时间（最后编辑时间）
+**微信推送（PushPlus）**：
+- 渐变色标题
+- 优先级颜色标识（P0红色、P1橙色、P2紫色）
+- 卡片式任务布局
+- 任务统计图表
 
-## 使用方法
+**邮件推送**：
+- 响应式 HTML 模板
+- 精美的视觉设计
+- 完整任务信息展示
+- 统计数据可视化
 
-### 1. 本地运行
+---
+
+## 🚀 快速开始
+
+### 1. 环境准备
 
 ```bash
-# 安装依赖
+# 克隆项目
+git clone <your-repo-url>
+cd notion-task-reminder
+
+# 安装 Python 依赖
 pip install -r requirements.txt
 
-# 运行脚本
-python src/main.py
+# 安装前端依赖
+cd frontend
+npm install
+npm run build
+cd ..
 ```
 
-### 2. GitHub Actions
+### 2. 配置环境变量
 
-项目已配置 GitHub Actions，会在以下时间自动运行：
-- 07:00（北京时间）：准备待办任务数据
-- 08:00（北京时间）：发送待办任务提醒
-- 21:30（北京时间）：准备已完成任务数据
-- 22:00（北京时间）：发送已完成任务提醒
+```bash
+# 复制配置文件
+cp .env.example .env
 
-也可以在 GitHub Actions 页面手动触发，支持选择：
-- 任务类型：daily_todo（待办任务）/ daily_done（已完成任务）
-- 操作类型：prepare（准备数据）/ send（发送消息）
-
-## 消息格式示例
-
-### 待办任务
-```
-📋 待办任务 | dada (共2条)
-
-1. 完成项目方案 | doing (P0 | 项目)
-   └─ 撰写需求文档 | doing (P1 | 文档)
-   └─ 设计系统架构 | inbox (P0 | 设计)
-      ⛔️ 被阻止: UI设计评审
-
-2. 更新周报 | inbox (P2 | 文档)
-   ⛔️ 被阻止: 数据统计
+# 编辑配置文件
+nano .env
 ```
 
-### 已完成任务
-```
-✅ 今日完成 (3/5)
-
-1. 完成项目方案 | 项目 | P0 重要紧急
-2. 撰写需求文档 | 文档 | P1 重要不紧急
-3. 更新周报 | 文档 | P2 紧急不重要
-
-📊 任务统计:
-- 完成率: 60%
-- 重要任务: 2 | 紧急任务: 2
-- 优先级: P0(1) P1(1) P2(1) P3(0)
-- 任务类型:
-  • 文档: 2
-  • 项目: 1
+**必需配置**：
+```env
+NOTION_TOKEN=your_notion_token
+DATABASE_ID=your_database_id
 ```
 
-## 注意事项
+**可选配置**：
+```env
+# PushPlus 微信推送
+PUSHPLUS_TOKEN=your_pushplus_token
 
-1. 确保所有必要的环境变量都已正确配置
-2. Notion API Token 需要有数据库的读取权限
-3. 推送渠道的 Token 需要提前申请并配置
-4. 时区默认使用北京时间（Asia/Shanghai）
-5. 数据准备和发送分离，可以更好地处理任务统计
-6. GitHub Actions 的执行记录会通过 commit comment 保存 
+# 邮件推送
+EMAIL_ENABLED=true
+EMAIL_SMTP_SERVER=smtp.163.com
+EMAIL_SMTP_PORT=465
+EMAIL_SENDER=your_email@163.com
+EMAIL_PASSWORD=your_auth_code
+EMAIL_RECEIVER=receiver@163.com
+```
+
+### 3. 启动服务
+
+#### 方式一：使用启动脚本（推荐）
+
+```bash
+# 一键启动（自动检查环境、安装依赖、构建前端、启动服务器）
+./start.sh
+```
+
+启动脚本会自动：
+- ✅ 检查 Python 版本
+- ✅ 创建并激活虚拟环境
+- ✅ 安装 Python 依赖
+- ✅ 检查前端构建
+- ✅ 加载环境变量
+- ✅ 启动 Flask 服务器
+
+#### 方式二：手动启动
+
+**启动后端**：
+```bash
+# 激活虚拟环境（如果有）
+source venv/bin/activate
+
+# 启动 Flask 服务器
+python backend/app.py
+```
+
+**前端开发模式**（可选）：
+```bash
+# 在另一个终端
+cd frontend
+npm run dev
+```
+
+#### 访问应用
+
+- **生产模式**: http://localhost:5000
+- **开发模式**: http://localhost:5173 (Vite dev server)
+
+🎉 启动成功！
+
+---
+
+## 📖 详细文档
+
+- **[完整安装指南](./docs/SETUP_GUIDE.md)** - 详细的配置步骤
+- **[实施总结](./docs/IMPLEMENTATION_SUMMARY.md)** - 开发实施详情
+- **[测试报告](./docs/TEST_REPORT.md)** - 完整测试报告
+- **[交付文档](./docs/DELIVERY.md)** - 项目交付说明
+- **[Notion 数据库结构](./notion_db_structure/notion_database_complete.md)** - 数据库字段说明
+- **[API 文档](#api-文档)** - RESTful API 接口说明
+
+---
+
+## 🛠️ 技术栈
+
+### 后端
+- **Flask 3.0** - Web 框架
+- **Requests** - HTTP 客户端
+- **Python 3.9+** - 编程语言
+
+### 前端
+- **React 18** - UI 框架
+- **TypeScript** - 类型安全
+- **TailwindCSS** - 样式框架
+- **Lucide React** - 图标库
+- **Axios** - HTTP 客户端
+- **Vite** - 构建工具
+
+### 自动化
+- **GitHub Actions** - CI/CD
+- **Cron** - 定时任务
+
+---
+
+## 📡 API 文档
+
+### 基础接口
+
+#### 健康检查
+```http
+GET /api/health
+```
+
+#### 获取任务列表
+```http
+GET /api/tasks?status=doing&assignee=dada
+```
+
+**Query 参数**：
+- `status`: inbox/pedding/doing/done
+- `assignee`: 负责人名称
+- `priority`: P0/P1/P2/P3
+- `type`: 任务类型
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "xxx",
+      "name": "完成项目方案",
+      "status": "doing",
+      "priority": "P0 重要紧急",
+      "assignee": "dada",
+      "task_type": "工作"
+    }
+  ],
+  "count": 1
+}
+```
+
+#### 更新任务
+```http
+PUT /api/tasks/{task_id}
+Content-Type: application/json
+
+{
+  "status": "done",
+  "priority": "P1 重要不紧急"
+}
+```
+
+#### 获取统计数据
+```http
+GET /api/stats
+```
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "data": {
+    "total": 16,
+    "today_completed": 8,
+    "important_tasks": 3,
+    "urgent_tasks": 2,
+    "by_status": {
+      "inbox": 3,
+      "doing": 5,
+      "done": 8
+    }
+  }
+}
+```
+
+#### 发送通知
+```http
+POST /api/notify
+Content-Type: application/json
+
+{
+  "type": "daily_todo",
+  "channels": ["pushplus", "email"]
+}
+```
+
+---
+
+## 🔧 配置说明
+
+### Notion 数据库要求
+
+数据库需包含以下字段：
+
+| 字段名称 | 类型 | 说明 |
+|---------|------|------|
+| 任务名称 | Title | 任务标题 |
+| 状态 | Status | inbox/pedding/doing/done |
+| 四象限 | Select | P0-P3 优先级 |
+| 任务类型 | Select | 工作/学习/生活等 |
+| 负责人 | Select | 任务执行者 |
+| 开始日期 | Date | 任务开始时间 |
+| 上级项目 | Relation | 父任务关系 |
+| 子级项目 | Relation | 子任务关系 |
+| 被阻止 | Relation | 阻止关系 |
+
+详见 [数据库结构文档](./notion_db_structure/notion_database_complete.md)
+
+### GitHub Actions 配置
+
+在仓库 Settings → Secrets 中添加：
+
+| Secret 名称 | 必需 | 说明 |
+|------------|------|------|
+| `NOTION_TOKEN` | ✅ | Notion Integration Token |
+| `DATABASE_ID` | ✅ | Notion 数据库 ID |
+| `PUSHPLUS_TOKEN` | ⭕ | PushPlus Token |
+| `EMAIL_ENABLED` | ⭕ | 是否启用邮件 |
+| `EMAIL_SENDER` | ⭕ | 发件人邮箱 |
+| `EMAIL_PASSWORD` | ⭕ | 邮箱授权码 |
+| `EMAIL_RECEIVER` | ⭕ | 收件人邮箱 |
+
+---
+
+## 📅 定时任务
+
+### 自动执行时间
+
+- **早上 8:00**（北京时间）- 发送今日待办任务
+- **晚上 22:00**（北京时间）- 发送今日完成总结
+
+### 手动触发
+
+1. 访问 GitHub Actions 页面
+2. 选择 "Daily Task Reminder"
+3. 点击 "Run workflow"
+4. 选择任务类型和通知渠道
+
+---
+
+## 🐛 故障排除
+
+### 常见问题
+
+**Q: 前端 TypeScript 报错？**
+```bash
+cd frontend && npm install
+```
+
+**Q: Flask 启动失败？**
+```bash
+pip install -r requirements.txt
+```
+
+**Q: Notion API 401 错误？**
+- 检查 Token 是否正确
+- 确认 Integration 已连接到数据库
+
+**Q: 收不到推送？**
+- PushPlus: 检查是否关注公众号
+- Email: 检查授权码是否正确，查看垃圾邮件
+
+更多问题请查看 [安装指南](./docs/SETUP_GUIDE.md#常见问题)
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+---
+
+## 📄 License
+
+MIT License
+
+---
+
+## 🙏 致谢
+
+- [Notion API](https://developers.notion.com/)
+- [PushPlus](http://www.pushplus.plus/)
+- [React](https://react.dev/)
+- [Flask](https://flask.palletsprojects.com/)
+- [TailwindCSS](https://tailwindcss.com/)
+
+---
+
+<div align="center">
+
+**Made with ❤️ by dada**
+
+[⬆ 回到顶部](#-notion-task-manager)
+
+</div>

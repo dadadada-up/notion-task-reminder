@@ -2,8 +2,8 @@ name: Daily Task Reminder
 
 on:
   schedule:
-    - cron: '50 23 * * *'    # UTC 23:50 = 北京时间约 07:50 (提前10分钟，待办任务)
-    - cron: '50 13 * * *'    # UTC 13:50 = 北京时间约 21:50 (提前10分钟，完成任务)
+    - cron: '0 0 * * *'      # UTC 00:00 = 北京时间 08:00 (早上待办任务)
+    - cron: '0 14 * * *'     # UTC 14:00 = 北京时间 22:00 (晚上完成任务)
   workflow_dispatch:      # 允许手动触发
     inputs:
       task_type:
@@ -146,6 +146,12 @@ jobs:
         PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
         WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
         WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+        EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED }}
+        EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
+        EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+        EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
         REMINDER_TYPE: ${{ steps.action-type.outputs.task_type }}
         ACTION_TYPE: ${{ steps.action-type.outputs.action_type }}
         SEND_TIME: ${{ steps.action-type.outputs.send_time }}

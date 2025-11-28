@@ -511,18 +511,22 @@ def send_to_wechat(title, content):
         print(f"准备发送 PushPlus 消息")
         print(f"标题: {title}")
         print(f"内容长度: {len(content)}")
-        print(f"内容预览: {content[:50]}...")
+        print(f"内容预览: {content[:100]}...")
+        
+        # 将 markdown 格式转换为 HTML
+        html_content = content.replace('\n', '<br/>')
         
         url = "http://www.pushplus.plus/send"
         data = {
             "token": PUSHPLUS_TOKEN,
             "title": title,
-            "content": content,
-            "template": "markdown"
+            "content": html_content,
+            "template": "html"  # 使用 html 模板
         }
         
         print(f"请求 URL: {url}")
         print(f"Token 长度: {len(PUSHPLUS_TOKEN)}")
+        print(f"HTML 内容预览: {html_content[:100]}...")
         
         # 添加重试机制
         max_retries = 3
@@ -544,6 +548,11 @@ def send_to_wechat(title, content):
                 if response.status_code == 200:
                     if result.get("code") == 200:
                         print("PushPlus 消息发送成功")
+                        print(f"PushPlus 返回的消息ID: {result.get('data', 'N/A')}")
+                        print("⚠️ 如果未收到消息，请检查:")
+                        print("  1. PushPlus 公众号是否已关注")
+                        print("  2. Token 是否已在 PushPlus 网站绑定微信")
+                        print("  3. 访问 http://www.pushplus.plus 查看发送记录")
                         return True
                     else:
                         error_msg = result.get('msg', '未知错误')
