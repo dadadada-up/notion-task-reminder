@@ -11,14 +11,7 @@ import json
 from pathlib import Path
 import random
 
-# 修改配置信息部分
-NOTION_TOKEN = os.environ.get('NOTION_TOKEN', "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")
-DATABASE_ID = os.environ.get('DATABASE_ID', "192ed4b7aaea81859bbbf3ad4ea54b56")
-PUSHPLUS_TOKEN = os.environ.get('PUSHPLUS_TOKEN', "3cfcadc8fcf744769292f0170e724ddb")
-
-# 在配置部分添加 WxPusher 配置
-WXPUSHER_TOKEN = "AT_wO2h16sJxNbV0pR3wOvssCi5eGKomrhH"
-WXPUSHER_UID = "UID_Kp0Ftm3F0GmnGmdYnmKY3yBet7u4"
+# 配置信息从环境变量读取（不要硬编码敏感信息）
 
 # 优先级排序
 PRIORITY_ORDER = {
