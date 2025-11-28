@@ -51,4 +51,13 @@ Icon
 
 # Project specific
 data/
-*.log 
+*.log
+
+# Test outputs
+test_output_*.html
+test_output_*.md
+
+# Environment files
+.env.test
+.env.local
+.env.*.local
