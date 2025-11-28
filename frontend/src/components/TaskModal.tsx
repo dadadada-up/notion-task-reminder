@@ -7,19 +7,21 @@ interface TaskModalProps {
   isOpen: boolean
   onClose: () => void
   onSave: (task: Partial<Task>) => Promise<void>
+  parentTask?: Task | null
 }
 
-const TaskModal = ({ task, isOpen, onClose, onSave }: TaskModalProps) => {
+const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps) => {
   const [formData, setFormData] = useState({
     name: '',
     status: '收集箱' as Task['status'],
-    priority: 'P3 不重要不紧急',
+    priority: 'P3 不重要不紲急',
     task_type: '个人成长',
     assignee: 'dada',
     email: 'dadadada_up@163.com',
     start_date: '',
     deadline: '',
     notes: '',
+    parent_ids: [] as string[],
   })
   const [saving, setSaving] = useState(false)
 
@@ -28,28 +30,44 @@ const TaskModal = ({ task, isOpen, onClose, onSave }: TaskModalProps) => {
       setFormData({
         name: task.name || '',
         status: task.status || '收集箱',
-        priority: task.priority || 'P3 不重要不紧急',
+        priority: task.priority || 'P3 不重要不 紧急',
         task_type: task.task_type || '个人成长',
         assignee: task.assignee || 'dada',
         email: task.email || (task.assignee === 'dada' ? 'dadadada_up@163.com' : ''),
         start_date: task.start_date || '',
         deadline: task.deadline || '',
         notes: task.notes || '',
+        parent_ids: task.parent_ids || [],
+      })
+    } else if (parentTask) {
+      // 创建子任务，继承父任务属性
+      setFormData({
+        name: '',
+        status: '收集箱',
+        priority: parentTask.priority || 'P3 不重要不 紧急',
+        task_type: parentTask.task_type || '个人成长',
+        assignee: parentTask.assignee || 'dada',
+        email: parentTask.assignee === 'dada' ? 'dadadada_up@163.com' : '',
+        start_date: '',
+        deadline: '',
+        notes: '',
+        parent_ids: [parentTask.id],
       })
     } else {
       setFormData({
         name: '',
         status: '收集箱',
-        priority: 'P3 不重要不紧急',
+        priority: 'P3 不重要不 紧急',
         task_type: '个人成长',
         assignee: 'dada',
         email: 'dadadada_up@163.com',
         start_date: '',
         deadline: '',
         notes: '',
+        parent_ids: [],
       })
     }
-  }, [task, isOpen])
+  }, [task, parentTask, isOpen])
 
   // 负责人变化时自动填充邮箱
   const handleAssigneeChange = (assignee: string) => {
@@ -220,6 +238,25 @@ const TaskModal = ({ task, isOpen, onClose, onSave }: TaskModalProps) => {
                 </label>
               </div>
             </div>
+
+            {/* 关系字段 - 上级项目 */}
+            {formData.parent_ids && formData.parent_ids.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  上级项目
+                </label>
+                <div className="flex flex-wrap gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  {formData.parent_ids.map((parentId) => (
+                    <span key={parentId} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                      {parentId.substring(0, 8)}...
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  此任务是子任务，将关联到上级项目
+                </p>
+              </div>
+            )}
 
             {/* 备注 */}
             <div>

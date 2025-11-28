@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import { BarChart3, RefreshCw, Send, Plus, Inbox, PlayCircle, CheckCircle2, PauseCircle, XCircle, LayoutGrid, List } from 'lucide-react'
+import { BarChart3, RefreshCw, Send, Plus, Inbox, PlayCircle, CheckCircle2, PauseCircle, XCircle, LayoutGrid, List, Settings } from 'lucide-react'
 import TaskGallery from './components/TaskGallery'
 import TaskTable from './components/TaskTable'
 import StatsPanel from './components/StatsPanel'
 import TaskModal from './components/TaskModal'
 import TaskDetailModal from './components/TaskDetailModal'
+import ScheduleSettings from './components/ScheduleSettings'
 import { Task, Stats } from './types'
 import { fetchTasks, fetchStats, sendNotification } from './api'
 
@@ -19,6 +20,8 @@ function App() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
+  const [isScheduleSettingsOpen, setIsScheduleSettingsOpen] = useState(false)
+  const [parentTaskForNewSubTask, setParentTaskForNewSubTask] = useState<Task | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -86,6 +89,14 @@ function App() {
 
   const handleNewTask = () => {
     setSelectedTask(null)
+    setIsModalOpen(true)
+  }
+
+  const handleCreateSubTask = (parentTask: Task) => {
+    // 设置父任务信息，用于新建子任务
+    setParentTaskForNewSubTask(parentTask)
+    setSelectedTask(null)
+    setIsDetailModalOpen(false)
     setIsModalOpen(true)
   }
 
@@ -184,6 +195,13 @@ function App() {
             <Send className="w-4 h-4 mr-2" />
             发送提醒
           </button>
+          <button
+            onClick={() => setIsScheduleSettingsOpen(true)}
+            className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            定时设置
+          </button>
         </div>
       </aside>
 
@@ -241,7 +259,7 @@ function App() {
           ) : (
             <>
               {viewMode === 'gallery' ? (
-                <TaskGallery tasks={filteredTasks} onTaskClick={handleTaskClick} />
+                <TaskGallery tasks={filteredTasks} onTaskClick={handleTaskClick} onTaskUpdate={loadData} />
               ) : (
                 <TaskTable tasks={filteredTasks} onTaskClick={handleTaskClick} />
               )}
@@ -261,8 +279,12 @@ function App() {
       <TaskModal
         task={selectedTask}
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false)
+          setParentTaskForNewSubTask(null)
+        }}
         onSave={handleSaveTask}
+        parentTask={parentTaskForNewSubTask}
       />
       
       <TaskDetailModal
@@ -270,6 +292,12 @@ function App() {
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         onEdit={handleEditTask}
+        onCreateSubTask={handleCreateSubTask}
+      />
+
+      <ScheduleSettings
+        isOpen={isScheduleSettingsOpen}
+        onClose={() => setIsScheduleSettingsOpen(false)}
       />
     </div>
   )

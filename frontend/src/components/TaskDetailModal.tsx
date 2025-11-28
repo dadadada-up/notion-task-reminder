@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react'
-import { X, Calendar, User, Flag, Tag, Clock, CheckCircle2, Link as LinkIcon, Edit, Mail, Hash } from 'lucide-react'
+import { X, Calendar, User, Flag, Tag, Clock, CheckCircle2, Link as LinkIcon, Edit, Mail, Hash, Plus } from 'lucide-react'
 import { Task } from '../types'
-import { fetchTasks } from '../api'
+import { fetchTasks, updateTask } from '../api'
 
 interface TaskDetailModalProps {
   task: Task | null
   isOpen: boolean
   onClose: () => void
   onEdit?: (task: Task) => void
+  onCreateSubTask?: (parentTask: Task) => void
 }
 
-const TaskDetailModal = ({ task, isOpen, onClose, onEdit }: TaskDetailModalProps) => {
+const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: TaskDetailModalProps) => {
   const [childTasks, setChildTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     if (task && task.child_ids && task.child_ids.length > 0) {
@@ -34,6 +36,30 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit }: TaskDetailModalProps
       console.error('Failed to load child tasks:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCompleteChildTask = async (childTask: Task, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (!confirm(`确认完成子任务「${childTask.name}」？`)) {
+      return
+    }
+
+    setCompletingTaskId(childTask.id)
+    try {
+      await updateTask(childTask.id, {
+        status: '已完成',
+        completed_time: new Date().toISOString()
+      })
+      
+      // 重新加载子任务列表
+      await loadChildTasks()
+    } catch (error) {
+      console.error('Failed to complete child task:', error)
+      alert('完成任务失败，请重试')
+    } finally {
+      setCompletingTaskId(null)
     }
   }
 
@@ -197,38 +223,93 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit }: TaskDetailModalProps
               </div>
             )}
 
-            {/* Child Tasks */}
-            {task.child_ids && task.child_ids.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                  子任务 ({task.child_ids.length})
-                </h3>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {childTasks.map((child) => (
-                      <div
-                        key={child.id}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(child.status)}`}>
-                          {child.status}
-                        </span>
-                        <span className="flex-1 text-sm text-gray-900">{child.name}</span>
-                        {child.deadline && (
-                          <span className="text-xs text-gray-500">
-                            截止: {formatDate(child.deadline)}
-                          </span>
-                        )}
-                      </div>
+            {/* 关系字段 */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">关系字段</h3>
+              
+              {/* 上级项目 */}
+              {task.parent_ids && task.parent_ids.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">上级项目 ({task.parent_ids.length})</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {task.parent_ids.map((parentId) => (
+                      <span key={parentId} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
+                        {parentId.substring(0, 8)}...
+                      </span>
                     ))}
                   </div>
+                </div>
+              )}
+              
+              {/* 子级项目 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-gray-700">
+                    子级项目 {task.child_ids && task.child_ids.length > 0 && `(${task.child_ids.length})`}
+                  </h4>
+                  {onCreateSubTask && (
+                    <button
+                      onClick={() => onCreateSubTask(task)}
+                      className="flex items-center gap-1 px-3 py-1 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      添加子任务
+                    </button>
+                  )}
+                </div>
+                {task.child_ids && task.child_ids.length > 0 && (
+                  loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {childTasks.map((child) => (
+                        <div
+                          key={child.id}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors relative"
+                        >
+                          {/* 进行中的子任务显示复选框 */}
+                          {child.status === '进行中' && (
+                            <input
+                              type="checkbox"
+                              checked={false}
+                              disabled={completingTaskId === child.id}
+                              onChange={(e) => handleCompleteChildTask(child, e as any)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer disabled:opacity-50 flex-shrink-0"
+                            />
+                          )}
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(child.status)}`}>
+                            {child.status}
+                          </span>
+                          <span className="flex-1 text-sm text-gray-900">{child.name}</span>
+                          {child.deadline && (
+                            <span className="text-xs text-gray-500">
+                              截止: {formatDate(child.deadline)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
-            )}
+              
+              {/* 被阻止 */}
+              {task.blocked_by_ids && task.blocked_by_ids.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">被阻止 ({task.blocked_by_ids.length})</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {task.blocked_by_ids.map((blockedId) => (
+                      <span key={blockedId} className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-xs">
+                        {blockedId.substring(0, 8)}...
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Notion链接 */}
             <div className="pt-4 border-t border-gray-200">

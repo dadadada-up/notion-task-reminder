@@ -9,6 +9,11 @@ from flask_cors import CORS
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载环境变量
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # 添加 src 目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
