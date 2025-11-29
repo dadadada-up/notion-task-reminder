@@ -266,6 +266,30 @@ class NotionService:
                 else:
                     properties['备注'] = {"rich_text": []}
             
+            if 'email' in updates:
+                if updates['email']:
+                    properties['邮箱'] = {
+                        "email": updates['email']
+                    }
+                else:
+                    properties['邮箱'] = {"email": None}
+            
+            if 'completed_time' in updates:
+                if updates['completed_time']:
+                    properties['任务完成时间'] = {
+                        "date": {"start": updates['completed_time']}
+                    }
+                else:
+                    properties['任务完成时间'] = {"date": None}
+            
+            if 'parent_ids' in updates:
+                if updates['parent_ids'] and len(updates['parent_ids']) > 0:
+                    properties['上级项目'] = {
+                        "relation": [{"id": pid} for pid in updates['parent_ids']]
+                    }
+                else:
+                    properties['上级项目'] = {"relation": []}
+            
             payload = {"properties": properties}
             
             response = requests.patch(url, headers=self.headers, json=payload)

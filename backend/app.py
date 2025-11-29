@@ -11,9 +11,16 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# 加载环境变量
+# 加载环境变量（优先使用tests/.env.test）
+test_env_path = Path(__file__).parent.parent / 'tests' / '.env.test'
 env_path = Path(__file__).parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+
+if test_env_path.exists():
+    load_dotenv(dotenv_path=test_env_path)
+    print(f"✅ 使用环境变量文件: {test_env_path}")
+else:
+    load_dotenv(dotenv_path=env_path)
+    print(f"✅ 使用环境变量文件: {env_path}")
 
 # 添加 src 目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
