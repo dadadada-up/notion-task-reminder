@@ -1015,6 +1015,60 @@ def send_cached_message():
 
 def main():
     try:
+        # 检查是否是手动触发
+        manual_task_type = os.environ.get('MANUAL_TASK_TYPE', '')
+        
+        # 如果是手动触发，使用传统逻辑
+        if manual_task_type:
+            print(f"手动触发模式: {manual_task_type}")
+            os.environ['REMINDER_TYPE'] = manual_task_type
+            os.environ['ACTION_TYPE'] = 'combined'
+            os.environ['FORCE_SEND'] = 'true'
+        else:
+            # 自动触发：读取 schedule 配置
+            print("自动触发模式：读取 schedule 配置")
+            
+            schedule_file = Path(__file__).parent.parent / 'data' / 'schedules.json'
+            
+            if schedule_file.exists():
+                try:
+                    with open(schedule_file, 'r', encoding='utf-8') as f:
+                        schedules = json.load(f)
+                    
+                    # 获取当前北京时间
+                    beijing_tz = pytz.timezone('Asia/Shanghai')
+                    current_time = datetime.now(beijing_tz)
+                    current_hour_minute = current_time.strftime('%H:%M')
+                    
+                    print(f"当前北京时间: {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                    print(f"当前时间: {current_hour_minute}")
+                    
+                    # 查找匹配的 schedule
+                    matched_schedule = None
+                    for schedule in schedules:
+                        if schedule.get('enabled', False) and schedule.get('time') == current_hour_minute:
+                            matched_schedule = schedule
+                            break
+                    
+                    if matched_schedule:
+                        print(f"✅ 找到匹配的任务: {matched_schedule['type']} at {matched_schedule['time']}")
+                        
+                        # 设置环境变量以使用现有逻辑
+                        os.environ['REMINDER_TYPE'] = matched_schedule['type']
+                        os.environ['ACTION_TYPE'] = 'combined'
+                        os.environ['SEND_TIME'] = matched_schedule['time']
+                        os.environ['FORCE_SEND'] = 'true'  # 跳过时间检查
+                    else:
+                        print(f"⏭️  当前时间 {current_hour_minute} 没有匹配的定时任务，跳过执行")
+                        return 0
+                        
+                except Exception as e:
+                    print(f"读取 schedule 配置失败: {str(e)}")
+                    print("将使用环境变量配置")
+            else:
+                print(f"未找到 schedule 配置文件: {schedule_file}")
+                print("将使用环境变量配置")
+        
         # 添加时间调试信息
         beijing_tz = pytz.timezone('Asia/Shanghai')
         utc_now = datetime.now(timezone.utc)

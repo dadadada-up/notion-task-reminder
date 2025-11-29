@@ -7,7 +7,10 @@ interface ScheduleItem {
   type: 'daily_todo' | 'daily_done'
   time: string
   enabled: boolean
-  customMessage?: string
+  title?: string
+  message?: string
+  channels?: ('pushplus' | 'email')[]
+  customMessage?: string  // 保留向后兼容
 }
 
 interface ScheduleSettingsProps {

@@ -20,8 +20,17 @@ class EmailService:
         self.password = os.environ.get('EMAIL_PASSWORD', '')
         self.receiver = os.environ.get('EMAIL_RECEIVER', '')
     
-    def send_notification(self, tasks: List[Dict], is_done: bool = False) -> Dict:
-        """发送邮件通知"""
+    def send_notification(self, tasks: List[Dict], is_done: bool = False,
+                         custom_title: str = '', custom_message: str = '') -> Dict:
+        """
+        发送邮件通知
+        
+        Args:
+            tasks: 任务列表
+            is_done: 是否为已完成任务
+            custom_title: 自定义标题
+            custom_message: 自定义消息（HTML格式）
+        """
         try:
             if not self.enabled:
                 return {
@@ -36,7 +45,16 @@ class EmailService:
                 }
             
             # 生成邮件内容
-            subject, html_content = self._generate_email_content(tasks, is_done)
+            default_subject, html_content = self._generate_email_content(tasks, is_done)
+            
+            # 使用自定义标题或默认标题
+            subject = custom_title if custom_title else default_subject
+            
+            # 如果有自定义消息，添加到内容中
+            if custom_message:
+                # 在 greeting 后插入自定义消息
+                custom_html = f'<div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 8px;">{custom_message}</div>'
+                html_content = html_content.replace('<div class="greeting">', f'<div class="greeting">\n{custom_html}\n', 1)
             
             # 创建邮件
             message = MIMEMultipart('alternative')

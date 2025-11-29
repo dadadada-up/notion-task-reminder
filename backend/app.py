@@ -23,6 +23,8 @@ from services.notion_service import NotionService
 from services.push_service import PushService
 from services.email_service import EmailService
 from services.schedule_service import ScheduleService
+from services.config_service import ConfigService
+from services.github_service import GitHubService
 
 app = Flask(__name__, static_folder='../frontend/dist')
 CORS(app)
@@ -32,6 +34,8 @@ notion_service = NotionService()
 push_service = PushService()
 email_service = EmailService()
 schedule_service = ScheduleService()
+config_service = ConfigService()
+github_service = GitHubService()
 
 # ==================== API Routes ====================
 
@@ -174,30 +178,61 @@ def send_notification():
     """
     发送通知
     Body: {
-        "type": "daily_todo" | "daily_done",
-        "channels": ["pushplus", "email"]
+        "type": "daily_todo" | "daily_done" | "both",
+        "channels": ["pushplus", "email"],
+        "customTitle": "自定义标题",
+        "customMessage": "自定义消息（HTML）"
     }
     """
     try:
         data = request.get_json()
         notification_type = data.get('type', 'daily_todo')
         channels = data.get('channels', ['pushplus'])
+        custom_title = data.get('customTitle', '')
+        custom_message = data.get('customMessage', '')
         
-        # 获取任务数据
-        is_done = notification_type == 'daily_done'
-        tasks = notion_service.get_tasks_for_notification(is_done)
+        print(f"\n[API /notify] 收到请求:")
+        print(f"  类型: {notification_type}")
+        print(f"  渠道: {channels}")
+        print(f"  自定义标题: {custom_title}")
         
         results = {}
         
-        # 发送 PushPlus 通知
-        if 'pushplus' in channels:
-            push_result = push_service.send_notification(tasks, is_done)
-            results['pushplus'] = push_result
+        # 处理发送类型
+        types_to_send = []
+        if notification_type == 'both':
+            types_to_send = ['daily_todo', 'daily_done']
+        else:
+            types_to_send = [notification_type]
         
-        # 发送邮件通知
-        if 'email' in channels:
-            email_result = email_service.send_notification(tasks, is_done)
-            results['email'] = email_result
+        # 发送每种类型的通知
+        for ntype in types_to_send:
+            is_done = ntype == 'daily_done'
+            print(f"\n[API /notify] 处理类型: {ntype} (is_done={is_done})")
+            
+            tasks = notion_service.get_tasks_for_notification(is_done)
+            print(f"[API /notify] 获取到 {len(tasks)} 个任务")
+            
+            # 使用自定义标题或默认标题
+            title = custom_title if custom_title else ('今日完成任务' if is_done else '今日待办任务')
+            
+            # 发送 PushPlus 通知
+            if 'pushplus' in channels:
+                print(f"[API /notify] 发送 PushPlus 通知...")
+                push_result = push_service.send_notification(
+                    tasks, is_done, title, custom_message
+                )
+                print(f"[API /notify] PushPlus 结果: {push_result}")
+                results[f'pushplus_{ntype}'] = push_result
+            
+            # 发送邮件通知
+            if 'email' in channels:
+                print(f"[API /notify] 发送邮件通知...")
+                email_result = email_service.send_notification(
+                    tasks, is_done, title, custom_message
+                )
+                print(f"[API /notify] 邮件结果: {email_result}")
+                results[f'email_{ntype}'] = email_result
         
         return jsonify({
             'success': True,
@@ -229,13 +264,69 @@ def manage_schedule():
             data = request.get_json()
             schedules = data.get('schedules', [])
             
+            # 1. 保存到本地
             result = schedule_service.save_schedules(schedules)
             
-            if result.get('success'):
-                return jsonify(result)
-            else:
+            if not result.get('success'):
                 return jsonify(result), 500
+            
+            # 2. 更新 GitHub Actions workflow
+            try:
+                github_updated = github_service.update_workflow(schedules)
                 
+                if github_updated:
+                    return jsonify({
+                        'success': True,
+                        'message': 'Schedule saved and GitHub Actions updated successfully'
+                    })
+                else:
+                    return jsonify({
+                        'success': True,
+                        'warning': 'Schedule saved but GitHub Actions update failed (check GitHub token)'
+                    })
+            except Exception as e:
+                # 即使 GitHub 更新失败，本地配置也已保存
+                return jsonify({
+                    'success': True,
+                    'warning': f'Schedule saved but GitHub update failed: {str(e)}'
+                })
+                
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/config', methods=['GET', 'PUT'])
+def manage_config():
+    """
+    管理系统配置
+    GET: 获取当前配置（脱敏）
+    PUT: 更新配置
+    """
+    try:
+        if request.method == 'GET':
+            # 获取配置（脱敏）
+            config = config_service.get_config()
+            return jsonify({
+                'success': True,
+                'data': config
+            })
+        else:
+            # 更新配置
+            data = request.get_json()
+            success = config_service.update_config(data)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': 'Configuration updated successfully. Some changes may require server restart.'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to update configuration'
+                }), 500
     except Exception as e:
         return jsonify({
             'success': False,

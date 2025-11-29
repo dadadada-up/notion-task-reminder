@@ -319,12 +319,18 @@ class NotionService:
             url = f"{self.base_url}/databases/{self.database_id}/query"
             
             if is_done:
-                # 查询今天已完成的任务
+                # 查询今天已完成的任务（状态=已完成 且 完成时间在今天）
                 filter_conditions = {
-                    "and": [{
-                        "property": "状态",
-                        "status": {"equals": "已完成"}
-                    }]
+                    "and": [
+                        {
+                            "property": "状态",
+                            "status": {"equals": "已完成"}
+                        },
+                        {
+                            "property": "任务完成时间",
+                            "date": {"equals": today_str}
+                        }
+                    ]
                 }
             else:
                 # 查询今天待办的任务

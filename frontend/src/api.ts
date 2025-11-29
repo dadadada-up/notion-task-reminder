@@ -39,10 +39,17 @@ export const fetchStats = async (): Promise<Stats> => {
 }
 
 export const sendNotification = async (
-  type: 'daily_todo' | 'daily_done',
-  channels: string[]
+  type: 'daily_todo' | 'daily_done' | 'both',
+  channels: string[],
+  customTitle?: string,
+  customMessage?: string
 ): Promise<any> => {
-  const response = await axios.post(`${API_BASE_URL}/notify`, { type, channels })
+  const response = await axios.post(`${API_BASE_URL}/notify`, { 
+    type, 
+    channels,
+    customTitle,
+    customMessage
+  })
   return response.data
 }
 
@@ -53,5 +60,15 @@ export const getSchedules = async (): Promise<any[]> => {
 
 export const saveSchedules = async (schedules: any[]): Promise<any> => {
   const response = await axios.post(`${API_BASE_URL}/schedule`, { schedules })
+  return response.data
+}
+
+export const getConfig = async (): Promise<any> => {
+  const response = await axios.get(`${API_BASE_URL}/config`)
+  return response.data.data
+}
+
+export const updateConfig = async (config: any): Promise<any> => {
+  const response = await axios.put(`${API_BASE_URL}/config`, config)
   return response.data
 }

@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
-import { BarChart3, RefreshCw, Send, Plus, Inbox, PlayCircle, CheckCircle2, PauseCircle, XCircle, LayoutGrid, List, Settings } from 'lucide-react'
+import { BarChart3, RefreshCw, Send, Plus, Inbox, PlayCircle, CheckCircle2, PauseCircle, XCircle, LayoutGrid, List, Settings, Cog } from 'lucide-react'
 import TaskGallery from './components/TaskGallery'
 import TaskTable from './components/TaskTable'
 import StatsPanel from './components/StatsPanel'
 import TaskModal from './components/TaskModal'
 import TaskDetailModal from './components/TaskDetailModal'
 import ScheduleSettings from './components/ScheduleSettings'
+import NotificationModal from './components/NotificationModal'
+import ConfigSettings from './components/ConfigSettings'
 import { Task, Stats } from './types'
-import { fetchTasks, fetchStats, sendNotification } from './api'
+import { fetchTasks, fetchStats } from './api'
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -15,12 +17,13 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [activeStatus, setActiveStatus] = useState<string>('进行中')
   const [viewMode, setViewMode] = useState<'gallery' | 'table'>('gallery')
-  const [sending, setSending] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [isScheduleSettingsOpen, setIsScheduleSettingsOpen] = useState(false)
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false)
+  const [isConfigSettingsOpen, setIsConfigSettingsOpen] = useState(false)
   const [parentTaskForNewSubTask, setParentTaskForNewSubTask] = useState<Task | null>(null)
 
   const loadData = async () => {
@@ -48,17 +51,7 @@ function App() {
     loadData()
   }, [])
 
-  const handleSendNotification = async (type: 'daily_todo' | 'daily_done') => {
-    setSending(true)
-    try {
-      await sendNotification(type, ['pushplus', 'email'])
-      alert('通知发送成功！')
-    } catch (error) {
-      alert('通知发送失败：' + error)
-    } finally {
-      setSending(false)
-    }
-  }
+  // 删除旧的 handleSendNotification，使用 NotificationModal 替代
 
   const handleSaveTask = async (taskData: Partial<Task>) => {
     const { createTask, updateTask } = await import('./api')
@@ -199,9 +192,8 @@ function App() {
             新建任务
           </button>
           <button
-            onClick={() => handleSendNotification('daily_todo')}
-            disabled={sending}
-            className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            onClick={() => setIsNotificationModalOpen(true)}
+            className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Send className="w-4 h-4 mr-2" />
             发送提醒
@@ -212,6 +204,13 @@ function App() {
           >
             <Settings className="w-4 h-4 mr-2" />
             定时设置
+          </button>
+          <button
+            onClick={() => setIsConfigSettingsOpen(true)}
+            className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Cog className="w-4 h-4 mr-2" />
+            系统配置
           </button>
         </div>
       </aside>
@@ -309,6 +308,16 @@ function App() {
       <ScheduleSettings
         isOpen={isScheduleSettingsOpen}
         onClose={() => setIsScheduleSettingsOpen(false)}
+      />
+      
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+      />
+      
+      <ConfigSettings
+        isOpen={isConfigSettingsOpen}
+        onClose={() => setIsConfigSettingsOpen(false)}
       />
     </div>
   )
