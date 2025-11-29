@@ -32,6 +32,14 @@ WXPUSHER_TOKEN = os.environ.get('WXPUSHER_TOKEN', '')
 WXPUSHER_UID = os.environ.get('WXPUSHER_UID', '')
 DEBUG_MODE = os.environ.get('DEBUG_MODE', '').lower() in ['true', '1', 'yes']
 
+# 邮件配置
+EMAIL_ENABLED = os.environ.get('EMAIL_ENABLED', 'false').lower() in ['true', '1', 'yes']
+EMAIL_SMTP_SERVER = os.environ.get('EMAIL_SMTP_SERVER', '')
+EMAIL_SMTP_PORT = int(os.environ.get('EMAIL_SMTP_PORT', '465'))
+EMAIL_SENDER = os.environ.get('EMAIL_SENDER', '')
+EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD', '')
+EMAIL_RECEIVER = os.environ.get('EMAIL_RECEIVER', '')
+
 # 调试函数
 def debug_print(*args, **kwargs):
     if DEBUG_MODE:
@@ -502,6 +510,60 @@ def add_unique_suffix(message):
     unique_suffix = f"\n\n<!-- {timestamp}-{random_str} -->"
     return message + unique_suffix
 
+def send_email(title, html_content):
+    """
+    发送邮件
+    """
+    try:
+        if not EMAIL_ENABLED:
+            print("邮件发送未启用，跳过")
+            return False
+        
+        if not all([EMAIL_SMTP_SERVER, EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER]):
+            print("邮件配置不完整，跳过")
+            return False
+        
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        print(f"准备发送邮件...")
+        print(f"SMTP 服务器: {EMAIL_SMTP_SERVER}:{EMAIL_SMTP_PORT}")
+        print(f"发件人: {EMAIL_SENDER}")
+        print(f"收件人: {EMAIL_RECEIVER}")
+        
+        # 创建邮件
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = title
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = EMAIL_RECEIVER
+        
+        # 添加 HTML 内容
+        html_part = MIMEText(html_content, 'html', 'utf-8')
+        msg.attach(html_part)
+        
+        # 发送邮件
+        if EMAIL_SMTP_PORT == 465:
+            # SSL
+            server = smtplib.SMTP_SSL(EMAIL_SMTP_SERVER, EMAIL_SMTP_PORT, timeout=30)
+        else:
+            # TLS
+            server = smtplib.SMTP(EMAIL_SMTP_SERVER, EMAIL_SMTP_PORT, timeout=30)
+            server.starttls()
+        
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        print("✅ 邮件发送成功")
+        return True
+        
+    except Exception as e:
+        print(f"❌ 邮件发送失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def send_to_wechat(title, content):
     """
     使用 PushPlus 发送微信消息
@@ -710,6 +772,20 @@ def send_message(message):
                 print(f"WxPusher 发送过程中出错: {str(e)}")
         elif not WXPUSHER_TOKEN or not WXPUSHER_UID:
             print("WxPusher 未配置，跳过")
+        
+        # 尝试发送邮件（与 PushPlus/WxPusher 并行，不依赖其成功与否）
+        if EMAIL_ENABLED:
+            print("\n尝试发送邮件...")
+            try:
+                # 将纯文本消息转换为 HTML（使用统一的格式化模块）
+                html_content = convert_text_to_html_simple(base_title, unique_message)
+                if send_email(title, html_content):
+                    print("✅ 邮件发送成功")
+                    success = True  # 任一渠道成功即可
+                else:
+                    print("❌ 邮件发送失败")
+            except Exception as e:
+                print(f"❌ 邮件发送过程中出错: {str(e)}")
         
         # 如果所有渠道都失败，返回失败
         if not success:
