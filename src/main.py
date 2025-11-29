@@ -11,6 +11,9 @@ import json
 from pathlib import Path
 import random
 
+# 导入统一的消息格式化模块
+from message_formatter import convert_text_to_html_simple
+
 # 配置信息从环境变量读取（不要硬编码敏感信息）
 
 # 优先级排序
@@ -499,144 +502,6 @@ def add_unique_suffix(message):
     unique_suffix = f"\n\n<!-- {timestamp}-{random_str} -->"
     return message + unique_suffix
 
-def convert_text_to_html(title, text_content):
-    """将纯文本消息转换为 HTML 格式"""
-    
-    # 判断消息类型
-    is_done = "完成" in title or "✅" in title
-    
-    if is_done:
-        header_gradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-        card_border_color = "#10b981"
-    else:
-        header_gradient = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-        card_border_color = "#667eea"
-    
-    # 将文本内容转换为 HTML
-    lines = text_content.strip().split('\n')
-    html_lines = []
-    
-    for line in lines:
-        if not line.strip():
-            continue
-        
-        # 处理不同类型的行
-        if line.startswith('📋') or line.startswith('✅'):
-            # 标题行 - 跳过，已经在 header 中
-            continue
-        elif '|' in line and ('共' in line or '条' in line):
-            # 负责人和任务数量行
-            html_lines.append(f'<div class="assignee-header">{line.strip()}</div>')
-        elif line.strip().startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')):
-            # 主任务
-            html_lines.append(f'<div class="task-card">{line.strip()}</div>')
-        elif line.strip().startswith('└─'):
-            # 子任务
-            html_lines.append(f'<div class="task-card subtask">{line.strip()}</div>')
-        elif line.startswith('消息ID:'):
-            # 消息ID - 放在footer
-            continue
-        else:
-            # 其他内容
-            html_lines.append(f'<p>{line.strip()}</p>')
-    
-    # 获取当前时间
-    beijing_tz = pytz.timezone('Asia/Shanghai')
-    now = datetime.now(timezone.utc).astimezone(beijing_tz)
-    time_str = now.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # 生成完整的 HTML
-    html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }}
-        .header {{
-            background: {header_gradient};
-            color: white;
-            padding: 30px 20px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 24px;
-            font-weight: 600;
-        }}
-        .header p {{
-            margin: 10px 0 0 0;
-            opacity: 0.9;
-            font-size: 14px;
-        }}
-        .content {{
-            padding: 20px;
-        }}
-        .assignee-header {{
-            font-size: 18px;
-            font-weight: 600;
-            color: #1f2937;
-            margin: 20px 0 15px 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e5e7eb;
-        }}
-        .task-card {{
-            background: #f9fafb;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 8px;
-            border-left: 4px solid {card_border_color};
-            transition: transform 0.2s;
-        }}
-        .task-card.subtask {{
-            margin-left: 30px;
-            background: #f3f4f6;
-            border-left-color: #9ca3af;
-        }}
-        .footer {{
-            padding: 20px;
-            text-align: center;
-            background: #f9fafb;
-            border-top: 1px solid #e5e7eb;
-            color: #6b7280;
-            font-size: 12px;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{title}</h1>
-            <p>{time_str}</p>
-        </div>
-        <div class="content">
-            {''.join(html_lines)}
-        </div>
-        <div class="footer">
-            Notion Task Manager · 自动提醒
-        </div>
-    </div>
-</body>
-</html>
-"""
-    
-    return html
-
 def send_to_wechat(title, content):
     """
     使用 PushPlus 发送微信消息
@@ -651,8 +516,8 @@ def send_to_wechat(title, content):
         print(f"内容长度: {len(content)}")
         print(f"内容预览: {content[:100]}...")
         
-        # 将纯文本消息转换为 HTML 格式
-        html_content = convert_text_to_html(title, content)
+        # 将纯文本消息转换为 HTML 格式（使用统一的格式化模块）
+        html_content = convert_text_to_html_simple(title, content)
         
         url = "http://www.pushplus.plus/send"
         data = {

@@ -56,6 +56,16 @@ data/
 # Test outputs
 test_output_*.html
 test_output_*.md
+tests/*_output*.md
+tests/*_output*.html
+tests/test_output_*
+
+# Temporary files
+*_temp.sh
+*_fix.py
+update_*.sh
+*_ANALYSIS.md
+*_PLAN.md
 
 # Environment files
 .env.test
