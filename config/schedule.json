@@ -1,16 +1,16 @@
 [
   {
-    "customMessage": "今日待办事项如下：",
-    "enabled": true,
     "id": "1",
+    "type": "daily_todo",
     "time": "08:00",
-    "type": "daily_todo"
+    "enabled": true,
+    "customMessage": "早上好！今天的任务已为您准备好 💪"
   },
   {
-    "id": "1764340858307",
+    "id": "2",
     "type": "daily_done",
     "time": "21:00",
     "enabled": true,
-    "customMessage": "今日完成事项如下："
+    "customMessage": "晚上好！今天辛苦了，看看完成了多少任务 ✨"
   }
 ]
