@@ -1015,11 +1015,16 @@ def send_cached_message():
 
 def main():
     try:
-        # 检查是否是手动触发
+        # 优先检查是否已经设置了 REMINDER_TYPE 环境变量（GitHub Actions 场景）
+        reminder_type_env = os.environ.get('REMINDER_TYPE', '')
         manual_task_type = os.environ.get('MANUAL_TASK_TYPE', '')
         
-        # 如果是手动触发，使用传统逻辑
-        if manual_task_type:
+        if reminder_type_env and reminder_type_env != 'unknown':
+            # GitHub Actions 或其他已设置环境变量的场景
+            print(f"✅ 使用环境变量配置: REMINDER_TYPE={reminder_type_env}")
+            # 环境变量已设置，直接使用
+        elif manual_task_type:
+            # 手动触发模式
             print(f"手动触发模式: {manual_task_type}")
             os.environ['REMINDER_TYPE'] = manual_task_type
             os.environ['ACTION_TYPE'] = 'combined'
