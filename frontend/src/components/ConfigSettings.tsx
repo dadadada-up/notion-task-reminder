@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Save, Settings } from 'lucide-react'
+import { X, Save, Settings, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { getConfig, updateConfig } from '../api'
 
 interface ConfigSettingsProps {
@@ -11,6 +11,7 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
   const [config, setConfig] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (isOpen) {
@@ -32,6 +33,12 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
   }
 
   const handleSave = async () => {
+    // 验证配置
+    if (!validateConfig()) {
+      alert('请检查配置项，确保必填项已填写')
+      return
+    }
+    
     setSaving(true)
     try {
       const result = await updateConfig(config)
@@ -57,6 +64,65 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
         [field]: value
       }
     })
+    
+    // 清除该字段的验证错误
+    const errorKey = `${section}.${field}`
+    if (validationErrors[errorKey]) {
+      const newErrors = { ...validationErrors }
+      delete newErrors[errorKey]
+      setValidationErrors(newErrors)
+    }
+  }
+  
+  const validateConfig = (): boolean => {
+    const errors: Record<string, string> = {}
+    
+    // 验证 Notion 配置
+    if (!config.notion.token || config.notion.token === '***') {
+      errors['notion.token'] = 'Notion Token 不能为空'
+    }
+    if (!config.notion.databaseId) {
+      errors['notion.databaseId'] = 'Database ID 不能为空'
+    }
+    
+    // 验证邮箱配置（如果启用）
+    if (config.email.enabled) {
+      if (!config.email.smtpServer) {
+        errors['email.smtpServer'] = 'SMTP 服务器不能为空'
+      }
+      if (!config.email.sender) {
+        errors['email.sender'] = '发件人邮箱不能为空'
+      }
+      if (!config.email.receiver) {
+        errors['email.receiver'] = '收件人邮箱不能为空'
+      }
+      if (!config.email.password || config.email.password === '***') {
+        errors['email.password'] = '邮箱密码不能为空'
+      }
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+  
+  const getStatusIcon = (isConfigured: boolean, isEnabled: boolean = true) => {
+    if (!isEnabled) {
+      return <XCircle className="w-5 h-5 text-gray-400" />
+    }
+    if (isConfigured) {
+      return <CheckCircle className="w-5 h-5 text-green-500" />
+    }
+    return <AlertCircle className="w-5 h-5 text-yellow-500" />
+  }
+  
+  const getStatusText = (isConfigured: boolean, isEnabled: boolean = true) => {
+    if (!isEnabled) {
+      return <span className="text-gray-500">未启用</span>
+    }
+    if (isConfigured) {
+      return <span className="text-green-600">已配置</span>
+    }
+    return <span className="text-yellow-600">未配置</span>
   }
 
   if (!isOpen) return null
@@ -91,44 +157,66 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
         <div className="p-6 space-y-8">
           {/* Notion 配置 */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
-              Notion 配置
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
+                Notion 配置
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                {getStatusIcon(!!config.notion.token && !!config.notion.databaseId)}
+                {getStatusText(!!config.notion.token && !!config.notion.databaseId)}
+              </div>
             </h3>
             <div className="space-y-4 pl-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notion Token
+                  Notion Token <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="password"
                   value={config.notion.token}
                   onChange={(e) => updateField('notion', 'token', e.target.value)}
                   placeholder="ntn_***"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    validationErrors['notion.token'] ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {validationErrors['notion.token'] && (
+                  <p className="mt-1 text-xs text-red-500">{validationErrors['notion.token']}</p>
+                )}
                 <p className="mt-1 text-xs text-gray-500">如果显示为 ***, 表示已配置，留空则不修改</p>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Database ID
+                  Database ID <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={config.notion.databaseId}
                   onChange={(e) => updateField('notion', 'databaseId', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    validationErrors['notion.databaseId'] ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {validationErrors['notion.databaseId'] && (
+                  <p className="mt-1 text-xs text-red-500">{validationErrors['notion.databaseId']}</p>
+                )}
               </div>
             </div>
           </div>
 
           {/* 推送配置 */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="w-2 h-2 bg-green-600 rounded-full mr-2"></span>
-              推送配置
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-green-600 rounded-full mr-2"></span>
+                推送配置
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                {getStatusIcon(config.push.hasPushplus || config.push.hasWxpusher)}
+                {getStatusText(config.push.hasPushplus || config.push.hasWxpusher)}
+              </div>
             </h3>
             <div className="space-y-4 pl-4">
               <div>
@@ -139,17 +227,56 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
                   type="password"
                   value={config.push.pushplusToken}
                   onChange={(e) => updateField('push', 'pushplusToken', e.target.value)}
+                  placeholder="留空则不修改"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  {config.push.hasPushplus ? '✓ 已配置 PushPlus' : '未配置 PushPlus'}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  WxPusher Token
+                </label>
+                <input
+                  type="password"
+                  value={config.push.wxpusherToken}
+                  onChange={(e) => updateField('push', 'wxpusherToken', e.target.value)}
+                  placeholder="留空则不修改"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  WxPusher UID
+                </label>
+                <input
+                  type="text"
+                  value={config.push.wxpusherUid}
+                  onChange={(e) => updateField('push', 'wxpusherUid', e.target.value)}
+                  placeholder="WxPusher 用户 ID"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {config.push.hasWxpusher ? '✓ 已配置 WxPusher' : '未配置 WxPusher'}
+                </p>
               </div>
             </div>
           </div>
 
           {/* 邮箱配置 */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="w-2 h-2 bg-purple-600 rounded-full mr-2"></span>
-              邮箱配置
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-purple-600 rounded-full mr-2"></span>
+                邮箱配置
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                {getStatusIcon(config.email.isConfigured, config.email.enabled)}
+                {getStatusText(config.email.isConfigured, config.email.enabled)}
+              </div>
             </h3>
             <div className="space-y-4 pl-4">
               <div className="flex items-center">
@@ -234,9 +361,15 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
 
           {/* GitHub 配置 */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="w-2 h-2 bg-gray-600 rounded-full mr-2"></span>
-              GitHub 配置
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="w-2 h-2 bg-gray-600 rounded-full mr-2"></span>
+                GitHub 配置
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                {getStatusIcon(config.github.isConfigured)}
+                {getStatusText(config.github.isConfigured)}
+              </div>
             </h3>
             <div className="space-y-4 pl-4">
               <div>

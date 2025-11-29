@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 # 添加backend目录到路径
-sys.path.insert(0, str(Path(__file__).parent / 'backend'))
+backend_path = Path(__file__).parent.parent.parent / 'backend'
+sys.path.insert(0, str(backend_path))
 
 from services.schedule_service import ScheduleService
 

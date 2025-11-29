@@ -71,3 +71,7 @@ update_*.sh
 .env.test
 .env.local
 .env.*.local
+# Backup files with secrets
+.env.backup
+.env.*.backup
+*.backup

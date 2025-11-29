@@ -109,14 +109,33 @@ echo "║                                                          ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# 检查并释放端口
+# 检查并处理端口占用
 PORT=$(grep "^PORT=" $ENV_FILE 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "5000")
 if lsof -ti:$PORT > /dev/null 2>&1; then
-    echo "⚠️  端口 $PORT 被占用，正在释放..."
-    lsof -ti:$PORT | xargs kill -9 2>/dev/null
-    sleep 1
+    echo "⚠️  端口 $PORT 被占用"
+    echo "提示: 在 macOS 上，可能是 AirPlay Receiver 占用了 5000 端口"
+    echo "解决方案:"
+    echo "  1. 系统设置 -> 通用 -> 隔空播放与接力 -> 关闭 AirPlay 接收器"
+    echo "  2. 或者修改 .env 文件中的 PORT 为其他端口（如 5001）"
+    echo ""
+    read -p "是否尝试使用端口 5001？(y/n) " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        PORT=5001
+        export PORT=5001
+        echo "✅ 使用端口 5001"
+    else
+        echo "❌ 取消启动"
+        exit 1
+    fi
 fi
 
 # 加载环境变量并启动（正确处理行尾注释）
+# 保存当前的 PORT 设置（如果有）
+SAVED_PORT=$PORT
 export $(cat $ENV_FILE | grep -v '^#' | grep -v '^$' | sed 's/#.*//' | xargs)
+# 如果之前设置了 PORT，使用之前的值
+if [ ! -z "$SAVED_PORT" ]; then
+    export PORT=$SAVED_PORT
+fi
 python backend/app.py

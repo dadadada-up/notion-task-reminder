@@ -1,7 +1,7 @@
 name: Daily Task Reminder
 'on':
   schedule:
-  - cron: 0 0 * * *
+  - cron: 0 1 * * *
   - cron: 0 13 * * *
   workflow_dispatch:
     inputs:
@@ -66,18 +66,18 @@ jobs:
         ${{ github.event.inputs.custom_send_time }}\"\n  \n  # 根据任务类型设置发送时间\n  if\
         \ [ -n \"$custom_time\" ]; then\n    # 使用自定义时间\n    send_time=\"$custom_time\"\
         \n    echo \"使用自定义发送时间: $send_time\"\n  elif [ \"$task_type\" == \"daily_todo\"\
-        \ ]; then\n    send_time=\"08:00\"\n  elif [ \"$task_type\" == \"daily_done\"\
+        \ ]; then\n    send_time=\"09:00\"\n  elif [ \"$task_type\" == \"daily_done\"\
         \ ]; then\n    send_time=\"21:00\"\n  else\n    send_time=\"08:00\"\n  fi\n\
         \  \n  # 设置表情\n  if [ \"$task_type\" == \"daily_todo\" ]; then\n    emoji=\"\
         \U0001F4CB\"\n  else\n    emoji=\"✅\"\n  fi\n  \n  echo \"task_type=${task_type}\"\
         \ >> $GITHUB_OUTPUT\n  echo \"action_type=${action_type}\" >> $GITHUB_OUTPUT\n\
         \  echo \"send_time=${send_time}\" >> $GITHUB_OUTPUT\n  echo \"emoji=${emoji}\"\
-        \ >> $GITHUB_OUTPUT\n  \n  exit 0\nfi\n\n# 定时触发的情况，根据当前时间判断任务类型\n# UTC 00:00-00:10\
-        \ (北京时间约 08:00)\nif ([ \"$hour_utc\" == \"0\" ] && [ \"$minute_utc\" -ge \"\
-        0\" ]) || ([ \"$hour_utc\" == \"0\" ] && [ \"$minute_utc\" -lt \"10\" ]);\
+        \ >> $GITHUB_OUTPUT\n  \n  exit 0\nfi\n\n# 定时触发的情况，根据当前时间判断任务类型\n# UTC 01:00-01:10\
+        \ (北京时间约 09:00)\nif ([ \"$hour_utc\" == \"1\" ] && [ \"$minute_utc\" -ge \"\
+        0\" ]) || ([ \"$hour_utc\" == \"1\" ] && [ \"$minute_utc\" -lt \"10\" ]);\
         \ then\n  echo \"task_type=daily_todo\" >> $GITHUB_OUTPUT\n  echo \"action_type=${action_type}\"\
-        \ >> $GITHUB_OUTPUT\n  echo \"send_time=08:00\" >> $GITHUB_OUTPUT\n  echo\
-        \ \"emoji=\U0001F4CB\" >> $GITHUB_OUTPUT\n  echo \"发送 08:00 的daily_todo任务\"\
+        \ >> $GITHUB_OUTPUT\n  echo \"send_time=09:00\" >> $GITHUB_OUTPUT\n  echo\
+        \ \"emoji=\U0001F4CB\" >> $GITHUB_OUTPUT\n  echo \"发送 09:00 的daily_todo任务\"\
         \n  exit 0\nfi\n\n# UTC 13:00-13:10 (北京时间约 21:00)\nif ([ \"$hour_utc\" ==\
         \ \"13\" ] && [ \"$minute_utc\" -ge \"0\" ]) || ([ \"$hour_utc\" == \"13\"\
         \ ] && [ \"$minute_utc\" -lt \"10\" ]); then\n  echo \"task_type=daily_done\"\

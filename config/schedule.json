@@ -2,7 +2,7 @@
   {
     "id": "1",
     "type": "daily_todo",
-    "time": "08:00",
+    "time": "09:00",
     "enabled": true,
     "customMessage": "早上好！今天的任务已为您准备好 💪"
   },
