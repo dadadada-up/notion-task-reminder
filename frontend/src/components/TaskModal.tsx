@@ -55,15 +55,18 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         parent_ids: [parentTask.id],
       })
     } else {
+      // 获取今天的日期（YYYY-MM-DD格式）
+      const today = new Date().toISOString().split('T')[0]
+      
       setFormData({
         name: '',
-        status: '收集箱',
-        priority: 'P3 不重要不 紧急',
+        status: '进行中',  // 默认状态改为"进行中"
+        priority: 'P3 不重要不紧急',
         task_type: '个人成长',
         assignee: 'dada',
         email: 'dadadada_up@163.com',
-        start_date: '',
-        deadline: '',
+        start_date: today,  // 默认开始日期为今天
+        deadline: today,    // 默认截止日期为今天
         notes: '',
         parent_ids: [],
       })

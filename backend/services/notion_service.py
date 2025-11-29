@@ -192,6 +192,14 @@ class NotionService:
                     "rich_text": [{"text": {"content": task_data['notes']}}]
                 }
             
+            # 添加父任务关联（如果提供了 parent_ids）
+            if 'parent_ids' in task_data and task_data['parent_ids']:
+                # 使用"上级 项目"关系属性（注意中间有空格）
+                # parent_ids 是一个数组，需要转换为 Notion 的 relation 格式
+                properties['上级 项目'] = {
+                    "relation": [{"id": pid} for pid in task_data['parent_ids']]
+                }
+            
             payload = {
                 "parent": {"database_id": self.database_id},
                 "properties": properties
@@ -266,13 +274,17 @@ class NotionService:
                 else:
                     properties['备注'] = {"rich_text": []}
             
-            if 'email' in updates:
-                if updates['email']:
-                    properties['邮箱'] = {
-                        "email": updates['email']
+            # 添加父任务关联（如果提供了 parent_ids）
+            if 'parent_ids' in updates:
+                # 使用"上级 项目"关系属性（注意中间有空格）
+                # parent_ids 是一个数组，需要转换为 Notion 的 relation 格式
+                if updates['parent_ids'] and len(updates['parent_ids']) > 0:
+                    properties['上级 项目'] = {
+                        "relation": [{"id": pid} for pid in updates['parent_ids']]
                     }
                 else:
-                    properties['邮箱'] = {"email": None}
+                    # 如果 parent_ids 为空数组，清空关系
+                    properties['上级 项目'] = {"relation": []}
             
             if 'completed_time' in updates:
                 if updates['completed_time']:
@@ -281,14 +293,6 @@ class NotionService:
                     }
                 else:
                     properties['任务完成时间'] = {"date": None}
-            
-            if 'parent_ids' in updates:
-                if updates['parent_ids'] and len(updates['parent_ids']) > 0:
-                    properties['上级项目'] = {
-                        "relation": [{"id": pid} for pid in updates['parent_ids']]
-                    }
-                else:
-                    properties['上级项目'] = {"relation": []}
             
             payload = {"properties": properties}
             
