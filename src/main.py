@@ -1125,19 +1125,8 @@ def main():
             action_desc = "准备并发送"
             print(f"\n=== 开始{action_desc}{task_type_desc} ===")
             
-            # 检查是否是允许的发送时间
-            valid_send_times = {
-                'daily_todo': '08:00',
-                'daily_done': '22:00'
-            }
-            expected_time = valid_send_times.get(os.environ.get('REMINDER_TYPE', ''), None)
-            
-            if expected_time and send_time != expected_time and not force_send:
-                print(f"警告: 当前设置的发送时间 {send_time} 与任务类型 {os.environ.get('REMINDER_TYPE')} 的预期时间 {expected_time} 不匹配")
-            
-            if send_time not in ['08:00', '22:00'] and not force_send:
-                print(f"当前时间 {send_time} 不是指定的发送时间（08:00 或 22:00），跳过发送")
-                return
+            # 注意：时间检查已移除，因为现在使用动态配置
+            # 时间由 schedules.json 或 GitHub Actions 环境变量控制
             
             # 1. 准备数据
             print(f"第一步: 准备{task_type_desc}数据...")
@@ -1261,20 +1250,9 @@ def main():
             action_desc = "发送"
             print(f"\n=== 开始{action_desc}{task_type_desc} ===")
             
-            # 检查是否是允许的发送时间
-            valid_send_times = {
-                'daily_todo': '08:00',
-                'daily_done': '22:00'
-            }
-            expected_time = valid_send_times.get(os.environ.get('REMINDER_TYPE', ''), None)
+            # 注意：时间检查已移除，因为现在使用动态配置
+            # 时间由 schedules.json 或 GitHub Actions 环境变量控制
             
-            if expected_time and send_time != expected_time and not force_send:
-                print(f"警告: 当前设置的发送时间 {send_time} 与任务类型 {os.environ.get('REMINDER_TYPE')} 的预期时间 {expected_time} 不匹配")
-            
-            if send_time not in ['08:00', '22:00'] and not force_send:
-                print(f"当前时间 {send_time} 不是指定的发送时间（08:00 或 22:00），跳过发送")
-                return
-                
             print(f"开始发送{task_type_desc}消息...")
             
             # 尝试发送缓存的消息
