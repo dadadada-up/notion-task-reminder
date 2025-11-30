@@ -25,6 +25,7 @@ from services.email_service import EmailService
 from services.schedule_service import ScheduleService
 from services.config_service import ConfigService
 from services.github_service import GitHubService
+from services.weekly_summary_service import WeeklySummaryService
 
 app = Flask(__name__, static_folder='../frontend/dist')
 CORS(app)
@@ -36,6 +37,7 @@ email_service = EmailService()
 schedule_service = ScheduleService()
 config_service = ConfigService()
 github_service = GitHubService()
+weekly_summary_service = WeeklySummaryService(notion_service)
 
 # ==================== API Routes ====================
 
@@ -350,6 +352,54 @@ def serve_frontend(path):
         return send_from_directory(app.static_folder, path)
     else:
         return send_from_directory(app.static_folder, 'index.html')
+
+# ==================== Weekly Summary Routes ====================
+
+@app.route('/api/weekly-summary', methods=['GET'])
+def get_weekly_summary():
+    """
+    获取每周生活总结
+    Query Parameters:
+    - week: 'current', 'last', 或具体日期 'YYYY-MM-DD'
+    """
+    try:
+        week = request.args.get('week', 'current')
+        summary = weekly_summary_service.get_weekly_summary(week)
+        
+        return jsonify({
+            'success': True,
+            'data': summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/weekly-summary/push', methods=['POST'])
+def push_weekly_summary():
+    """推送每周生活总结"""
+    try:
+        data = request.get_json()
+        week = data.get('week', 'current')
+        channels = data.get('channels', ['pushplus'])
+        
+        # 获取总结
+        summary = weekly_summary_service.get_weekly_summary(week)
+        
+        # 生成HTML（后续实现）
+        # html = weekly_summary_service.generate_summary_html(summary)
+        
+        # 暂时返回成功
+        return jsonify({
+            'success': True,
+            'message': '推送功能开发中'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # ==================== Error Handlers ====================
 

@@ -29,3 +29,45 @@ export interface Stats {
   important_tasks: number
   urgent_tasks: number
 }
+
+// 每周总结相关类型
+export interface WeeklySummary {
+  week_start: string
+  week_end: string
+  week_number: number
+  year: number
+  theme: WeeklyTheme
+  completed: CompletedSummary
+  highlights: Highlight[]
+  reflections: Reflections
+}
+
+export interface WeeklyTheme {
+  title: string
+  description: string
+}
+
+export interface CompletedSummary {
+  total: number
+  by_type: Record<string, TypeSummary>
+  by_priority: Record<string, number>
+  tasks: Task[]
+}
+
+export interface TypeSummary {
+  count: number
+  percentage: number
+  key_items: string[]
+  summary: string
+  tasks: Task[]
+}
+
+export interface Highlight {
+  title: string
+  content: string
+}
+
+export interface Reflections {
+  suggestions: string[]
+  concerns: string[]
+}

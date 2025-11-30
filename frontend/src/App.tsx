@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { BarChart3, RefreshCw, Send, Plus, Inbox, PlayCircle, CheckCircle2, PauseCircle, XCircle, LayoutGrid, List, Settings, Cog } from 'lucide-react'
+import { BarChart3, RefreshCw, Send, Plus, Inbox, PlayCircle, CheckCircle2, PauseCircle, XCircle, LayoutGrid, List, Settings, Cog, Calendar } from 'lucide-react'
 import TaskGallery from './components/TaskGallery'
 import TaskTable from './components/TaskTable'
 import StatsPanel from './components/StatsPanel'
@@ -8,6 +8,7 @@ import TaskDetailModal from './components/TaskDetailModal'
 import ScheduleSettings from './components/ScheduleSettings'
 import NotificationModal from './components/NotificationModal'
 import ConfigSettings from './components/ConfigSettings'
+import WeeklySummaryPage from './components/WeeklySummaryPage'
 import { Task, Stats } from './types'
 import { fetchTasks, fetchStats } from './api'
 
@@ -139,6 +140,7 @@ function App() {
     { status: '暂停', icon: PauseCircle, color: 'text-gray-600', bgColor: 'bg-gray-50', hoverColor: 'hover:bg-gray-100' },
     { status: '已完成', icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-50', hoverColor: 'hover:bg-green-100' },
     { status: '已放弃', icon: XCircle, color: 'text-red-600', bgColor: 'bg-red-50', hoverColor: 'hover:bg-red-100' },
+    { status: '我的一周', icon: Calendar, color: 'text-purple-600', bgColor: 'bg-purple-50', hoverColor: 'hover:bg-purple-100' },
   ]
 
   return (
@@ -229,32 +231,36 @@ function App() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{activeStatus}</h2>
-              <p className="text-sm text-gray-500">共 {filteredTasks.length} 个任务</p>
+              {activeStatus !== '我的一周' && (
+                <p className="text-sm text-gray-500">共 {filteredTasks.length} 个任务</p>
+              )}
             </div>
             <div className="flex items-center space-x-3">
-              {/* View Mode Toggle */}
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('gallery')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'gallery'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'table'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-              </div>
+              {/* View Mode Toggle - 只在非"我的一周"时显示 */}
+              {activeStatus !== '我的一周' && (
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('gallery')}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'gallery'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'table'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <button
                 onClick={loadData}
                 disabled={loading}
@@ -269,7 +275,9 @@ function App() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
+          {activeStatus === '我的一周' ? (
+            <WeeklySummaryPage />
+          ) : loading ? (
             <div className="flex items-center justify-center h-full">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
             </div>

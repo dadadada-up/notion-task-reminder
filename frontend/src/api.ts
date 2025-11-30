@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { Task, Stats } from './types'
+import { Task, Stats, WeeklySummary } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -70,5 +70,21 @@ export const getConfig = async (): Promise<any> => {
 
 export const updateConfig = async (config: any): Promise<any> => {
   const response = await axios.put(`${API_BASE_URL}/config`, config)
+  return response.data
+}
+
+// 每周总结 API
+export const fetchWeeklySummary = async (week: string = 'current'): Promise<WeeklySummary> => {
+  const response = await axios.get(`${API_BASE_URL}/weekly-summary`, {
+    params: { week }
+  })
+  return response.data.data
+}
+
+export const pushWeeklySummary = async (week: string, channels: string[]): Promise<any> => {
+  const response = await axios.post(`${API_BASE_URL}/weekly-summary/push`, {
+    week,
+    channels
+  })
   return response.data
 }
