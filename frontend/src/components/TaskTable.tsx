@@ -17,7 +17,15 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
     '已放弃': 4,
   }
 
-  // 排序任务：按状态优先，然后按截止日期倒序
+  // 优先级数值映射（用于排序）
+  const priorityOrder: Record<string, number> = {
+    'P0 重要紧急': 0,
+    'P1 重要不紧急': 1,
+    'P2 紧急不重要': 2,
+    'P3 不重要不紧急': 3,
+  }
+
+  // 排序任务
   const sortedTasks = [...tasks].sort((a, b) => {
     // 首先按状态排序
     const statusA = statusOrder[a.status] ?? 999
@@ -26,23 +34,34 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
       return statusA - statusB
     }
 
-    // 如果都是已完成状态，按任务完成时间倒序排序
+    // 如果都是已完成状态，按完成时间倒序 -> 优先级倒序 -> 负责人正序
     if (a.status === '已完成' && b.status === '已完成') {
+      // 1. 完成时间倒序（最新完成的在前）
       if (a.completed_time && b.completed_time) {
-        return new Date(b.completed_time).getTime() - new Date(a.completed_time).getTime()
+        const timeCompare = new Date(b.completed_time).getTime() - new Date(a.completed_time).getTime()
+        if (timeCompare !== 0) return timeCompare
       }
-      if (a.completed_time) return -1
-      if (b.completed_time) return 1
+      if (a.completed_time && !b.completed_time) return -1
+      if (!a.completed_time && b.completed_time) return 1
+      
+      // 2. 优先级倒序（P0最前）
+      const priorityA = priorityOrder[a.priority] ?? 999
+      const priorityB = priorityOrder[b.priority] ?? 999
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB
+      }
+      
+      // 3. 负责人正序（字母顺序）
+      return a.assignee.localeCompare(b.assignee, 'zh-CN')
     }
 
-    // 如果状态相同，按截止日期排序（有截止日期的优先，日期越近越靠前）
+    // 其他状态按截止日期排序
     if (a.deadline && b.deadline) {
       return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
     }
     if (a.deadline) return -1
     if (b.deadline) return 1
 
-    // 都没有截止日期，按创建时间倒序
     return new Date(b.created_time).getTime() - new Date(a.created_time).getTime()
   })
 
@@ -77,27 +96,28 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
     )
   }
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-'
-    const date = new Date(dateStr)
-    const today = new Date()
-    const diffTime = date.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return '-'
+    return formatDateUtil(dateString)
+  }
 
-    let className = 'text-gray-600'
-    if (diffDays < 0) {
-      className = 'text-red-600 font-semibold' // 已过期
-    } else if (diffDays === 0) {
-      className = 'text-orange-600 font-semibold' // 今天
-    } else if (diffDays <= 3) {
-      className = 'text-yellow-600' // 3天内
+  // 格式化完成时间 - 直接显示数据库的值，不做时区转换
+  const formatCompletedTime = (dateString: string | undefined) => {
+    if (!dateString) return '-'
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return dateString
+      
+      const year = date.getUTCFullYear()
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(date.getUTCDate()).padStart(2, '0')
+      const hours = String(date.getUTCHours()).padStart(2, '0')
+      const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+      
+      return `${year}年${month}月${day}日 ${hours}:${minutes}`
+    } catch (error) {
+      return dateString
     }
-
-    return (
-      <span className={className}>
-        {formatDateUtil(dateStr)}
-      </span>
-    )
   }
 
   return (
@@ -110,6 +130,9 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                 任务名称
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                任务类型
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 状态
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -117,9 +140,6 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 负责人
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                类型
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 开始日期
@@ -156,6 +176,9 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                     <div className="text-sm font-medium text-gray-900">{task.name}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-600">{task.task_type}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(task.status)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -163,9 +186,6 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900">{task.assignee}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-600">{task.task_type}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {formatDate(task.start_date)}
@@ -176,7 +196,7 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {task.completed_time ? (
                       <span className="text-green-600">
-                        {formatDateUtil(task.completed_time)}
+                        {formatCompletedTime(task.completed_time)}
                       </span>
                     ) : (
                       <span className="text-gray-400">-</span>

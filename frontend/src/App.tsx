@@ -51,6 +51,13 @@ function App() {
     loadData()
   }, [])
 
+  // 当切换到"已完成"tab时，自动切换到列表视图
+  useEffect(() => {
+    if (activeStatus === '已完成') {
+      setViewMode('table')
+    }
+  }, [activeStatus])
+
   // 删除旧的 handleSendNotification，使用 NotificationModal 替代
 
   const handleSaveTask = async (taskData: Partial<Task>) => {

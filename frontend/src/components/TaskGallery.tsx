@@ -13,6 +13,41 @@ interface TaskGalleryProps {
 const TaskGallery = ({ tasks, onTaskClick, onTaskUpdate }: TaskGalleryProps) => {
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
 
+  // 优先级数值映射（用于排序）
+  const priorityOrder: Record<string, number> = {
+    'P0 重要紧急': 0,
+    'P1 重要不紧急': 1,
+    'P2 紧急不重要': 2,
+    'P3 不重要不紧急': 3,
+  }
+
+  // 对已完成的任务进行排序：完成时间倒序 -> 优先级倒序 -> 负责人正序
+  const sortedTasks = [...tasks].sort((a, b) => {
+    // 只对已完成状态的任务进行特殊排序
+    if (a.status === '已完成' && b.status === '已完成') {
+      // 1. 完成时间倒序（最新完成的在前）
+      if (a.completed_time && b.completed_time) {
+        const timeCompare = new Date(b.completed_time).getTime() - new Date(a.completed_time).getTime()
+        if (timeCompare !== 0) return timeCompare
+      }
+      if (a.completed_time && !b.completed_time) return -1
+      if (!a.completed_time && b.completed_time) return 1
+      
+      // 2. 优先级倒序（P0最前）
+      const priorityA = priorityOrder[a.priority] ?? 999
+      const priorityB = priorityOrder[b.priority] ?? 999
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB
+      }
+      
+      // 3. 负责人正序（字母顺序）
+      return a.assignee.localeCompare(b.assignee, 'zh-CN')
+    }
+    
+    // 其他状态保持原顺序
+    return 0
+  })
+
   const handleCompleteTask = async (task: Task, e: React.MouseEvent) => {
     e.stopPropagation() // 阻止事件冒泡
 
@@ -93,7 +128,7 @@ const TaskGallery = ({ tasks, onTaskClick, onTaskUpdate }: TaskGalleryProps) => 
     return icons[taskType] || '📋'
   }
 
-  if (tasks.length === 0) {
+  if (sortedTasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-gray-400">
         <CheckCircle2 className="w-16 h-16 mb-4" />
@@ -104,7 +139,7 @@ const TaskGallery = ({ tasks, onTaskClick, onTaskUpdate }: TaskGalleryProps) => 
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {tasks.map((task) => (
+      {sortedTasks.map((task) => (
         <div
           key={task.id}
           className={`group relative border-l-4 ${getStatusColor(task.status)} rounded-lg p-4 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1`}

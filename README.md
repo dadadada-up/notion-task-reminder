@@ -390,6 +390,31 @@ pip install -r requirements.txt
 
 ---
 
+## 🛠️ 工具脚本
+
+项目提供了多个实用脚本来简化开发和部署：
+
+### 主要脚本
+- **`start.sh`** - 启动服务器（自动检查环境、安装依赖、构建前端）
+- **`auto_complete.sh`** - 自动完成任务（定时任务脚本）
+- **`install_dependencies.sh`** - 安装所有依赖（Python + Node.js）
+
+### 工具脚本（scripts/目录）
+- **`scripts/fix_env.sh`** - 修复环境变量配置
+- **`scripts/fix_git_secrets.sh`** - 清理Git历史中的敏感信息
+
+### 测试脚本（tests/目录）
+- **`tests/run_tests.sh`** - 运行所有测试
+- **`tests/run_unit_tests.sh`** - 运行单元测试
+
+---
+
+## 📝 更新日志
+
+查看 [docs/changelog/](./docs/changelog/) 目录了解详细的功能更新和bug修复记录。
+
+---
+
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！

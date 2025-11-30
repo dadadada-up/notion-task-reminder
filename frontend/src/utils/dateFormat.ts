@@ -5,7 +5,7 @@
 /**
  * 格式化日期为中文格式：2025年11月28日
  * @param dateString ISO日期字符串或日期字符串
- * @returns 格式化后的日期字符串
+ * @returns 格式化后的日期字符串（北京时间）
  */
 export const formatDate = (dateString: string | null | undefined): string => {
   if (!dateString) return ''
@@ -14,9 +14,18 @@ export const formatDate = (dateString: string | null | undefined): string => {
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return dateString
     
-    const year = date.getFullYear()
-    const month = date.getMonth() + 1
-    const day = date.getDate()
+    // 使用 toLocaleString 转换为北京时间
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric'
+    }
+    
+    const parts = new Intl.DateTimeFormat('zh-CN', options).formatToParts(date)
+    const year = parts.find(p => p.type === 'year')?.value || ''
+    const month = parts.find(p => p.type === 'month')?.value || ''
+    const day = parts.find(p => p.type === 'day')?.value || ''
     
     return `${year}年${month}月${day}日`
   } catch (error) {
@@ -27,7 +36,7 @@ export const formatDate = (dateString: string | null | undefined): string => {
 /**
  * 格式化日期时间为：2025年11月28日 15:35
  * @param dateString ISO日期时间字符串
- * @returns 格式化后的日期时间字符串
+ * @returns 格式化后的日期时间字符串（北京时间）
  */
 export const formatDateTime = (dateString: string | null | undefined): string => {
   if (!dateString) return ''
@@ -36,13 +45,25 @@ export const formatDateTime = (dateString: string | null | undefined): string =>
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return dateString
     
-    const year = date.getFullYear()
-    const month = date.getMonth() + 1
-    const day = date.getDate()
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
+    // 使用 toLocaleString 转换为北京时间
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }
     
-    return `${year}年${month}月${day}日 ${hours}:${minutes}`
+    const parts = new Intl.DateTimeFormat('zh-CN', options).formatToParts(date)
+    const year = parts.find(p => p.type === 'year')?.value || ''
+    const month = parts.find(p => p.type === 'month')?.value || ''
+    const day = parts.find(p => p.type === 'day')?.value || ''
+    const hour = parts.find(p => p.type === 'hour')?.value || ''
+    const minute = parts.find(p => p.type === 'minute')?.value || ''
+    
+    return `${year}年${month}月${day}日 ${hour}:${minute}`
   } catch (error) {
     return dateString
   }
@@ -51,7 +72,7 @@ export const formatDateTime = (dateString: string | null | undefined): string =>
 /**
  * 格式化为简短日期：11/28
  * @param dateString ISO日期字符串
- * @returns 格式化后的简短日期
+ * @returns 格式化后的简短日期（北京时间）
  */
 export const formatShortDate = (dateString: string | null | undefined): string => {
   if (!dateString) return ''
@@ -60,8 +81,16 @@ export const formatShortDate = (dateString: string | null | undefined): string =
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return dateString
     
-    const month = date.getMonth() + 1
-    const day = date.getDate()
+    // 使用 toLocaleString 转换为北京时间
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Shanghai',
+      month: 'numeric',
+      day: 'numeric'
+    }
+    
+    const parts = new Intl.DateTimeFormat('zh-CN', options).formatToParts(date)
+    const month = parts.find(p => p.type === 'month')?.value || ''
+    const day = parts.find(p => p.type === 'day')?.value || ''
     
     return `${month}/${day}`
   } catch (error) {
@@ -72,7 +101,7 @@ export const formatShortDate = (dateString: string | null | undefined): string =
 /**
  * 判断日期是否包含时间信息
  * @param dateString ISO日期字符串
- * @returns 是否包含时间
+ * @returns 是否包含时间（北京时间）
  */
 export const hasTime = (dateString: string | null | undefined): boolean => {
   if (!dateString) return false
@@ -81,8 +110,22 @@ export const hasTime = (dateString: string | null | undefined): boolean => {
     const date = new Date(dateString)
     if (isNaN(date.getTime())) return false
     
+    // 使用 toLocaleString 获取北京时间的小时、分钟、秒
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Shanghai',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false
+    }
+    
+    const parts = new Intl.DateTimeFormat('zh-CN', options).formatToParts(date)
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0')
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0')
+    const second = parseInt(parts.find(p => p.type === 'second')?.value || '0')
+    
     // 如果小时、分钟、秒都是0，认为没有时间信息
-    return date.getHours() !== 0 || date.getMinutes() !== 0 || date.getSeconds() !== 0
+    return hour !== 0 || minute !== 0 || second !== 0
   } catch (error) {
     return false
   }
@@ -106,7 +149,7 @@ export const formatDateSmart = (dateString: string | null | undefined): string =
 /**
  * 格式化相对时间：刚刚、5分钟前、今天、昨天等
  * @param dateString ISO日期字符串
- * @returns 相对时间描述
+ * @returns 相对时间描述（北京时间）
  */
 export const formatRelativeTime = (dateString: string | null | undefined): string => {
   if (!dateString) return ''

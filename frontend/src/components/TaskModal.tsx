@@ -23,6 +23,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
     deadline: '',
     notes: '',
     parent_ids: [] as string[],
+    completed_time: undefined as string | undefined,
   })
   const [saving, setSaving] = useState(false)
 
@@ -39,6 +40,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         deadline: task.deadline || '',
         notes: task.notes || '',
         parent_ids: task.parent_ids || [],
+        completed_time: task.completed_time,
       })
     } else if (parentTask) {
       // 创建子任务，继承父任务所有属性（除了任务名称）
@@ -53,6 +55,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         deadline: parentTask.deadline || '',
         notes: '',
         parent_ids: [parentTask.id],
+        completed_time: undefined,
       })
     } else {
       // 获取今天的日期（YYYY-MM-DD格式）
@@ -69,6 +72,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         deadline: today,    // 默认截止日期为今天
         notes: '',
         parent_ids: [],
+        completed_time: undefined,
       })
     }
   }, [task, parentTask, isOpen])
@@ -83,7 +87,13 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
     e.preventDefault()
     setSaving(true)
     try {
-      await onSave(formData)
+      // 如果状态改为已完成，自动设置完成时间
+      const dataToSave = { ...formData }
+      if (formData.status === '已完成' && (!task || task.status !== '已完成')) {
+        dataToSave.completed_time = new Date().toISOString()
+      }
+      
+      await onSave(dataToSave)
       onClose()
     } catch (error) {
       console.error('Failed to save task:', error)
