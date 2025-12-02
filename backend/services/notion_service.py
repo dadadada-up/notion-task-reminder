@@ -316,6 +316,8 @@ class NotionService:
             today = now.date()
             today_str = today.strftime('%Y-%m-%d')
             
+            print(f"[NotionService] 查询{'已完成' if is_done else '待办'}任务，日期: {today_str}")
+            
             url = f"{self.base_url}/databases/{self.database_id}/query"
             
             if is_done:
@@ -332,6 +334,7 @@ class NotionService:
                         }
                     ]
                 }
+                print(f"[NotionService] 查询条件: 状态=已完成 AND 任务完成时间={today_str}")
             else:
                 # 查询今天待办的任务
                 filter_conditions = {
@@ -365,12 +368,18 @@ class NotionService:
             data = response.json()
             results = data.get('results', [])
             
+            print(f"[NotionService] Notion API 返回 {len(results)} 个任务")
+            
             # 格式化任务数据
             tasks = []
             for result in results:
                 task = self._format_task(result)
+                # 打印已完成任务的完成时间用于调试
+                if is_done and task:
+                    print(f"[NotionService] 任务: {task.get('name')}, 完成时间: {task.get('completed_time')}")
                 tasks.append(task)
             
+            print(f"[NotionService] 格式化后返回 {len(tasks)} 个任务")
             return tasks
             
         except Exception as e:

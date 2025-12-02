@@ -90,79 +90,85 @@ def generate_html_message(tasks: List[Dict], is_done: bool = False) -> Tuple[str
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        * {{
+            box-sizing: border-box;
+        }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
             line-height: 1.6;
             color: #333;
             max-width: 600px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 12px;
             background-color: #f5f5f5;
         }}
         .container {{
             background: white;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }}
         .header {{
             background: {header_gradient};
             color: white;
-            padding: 30px 20px;
+            padding: 24px 16px;
             text-align: center;
         }}
         .header h1 {{
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
+            line-height: 1.3;
         }}
         .header p {{
-            margin: 10px 0 0 0;
-            opacity: 0.9;
-            font-size: 14px;
+            margin: 8px 0 0 0;
+            opacity: 0.95;
+            font-size: 13px;
         }}
         .content {{
-            padding: 20px;
+            padding: 16px;
         }}
         .assignee-section {{
-            margin-bottom: 30px;
+            margin-bottom: 24px;
         }}
         .assignee-header {{
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
             color: #1f2937;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border-left: 3px solid {header_gradient.split('(')[1].split(' ')[1]};
         }}
         .task-card {{
-            background: #f9fafb;
-            padding: 15px;
-            margin: 10px 0;
+            background: #ffffff;
+            padding: 12px;
+            margin: 8px 0;
             border-radius: 8px;
-            border-left: 4px solid #667eea;
-            transition: transform 0.2s;
-        }}
-        .task-card:hover {{
-            transform: translateX(5px);
+            border-left: 3px solid #667eea;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
         }}
         .task-title {{
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 500;
             color: #1f2937;
             margin-bottom: 8px;
+            line-height: 1.4;
+            word-break: break-word;
         }}
         .task-meta {{
             display: flex;
-            gap: 12px;
+            gap: 6px;
             flex-wrap: wrap;
-            font-size: 13px;
+            font-size: 11px;
         }}
         .task-meta span {{
-            padding: 2px 8px;
-            border-radius: 4px;
+            padding: 3px 8px;
+            border-radius: 12px;
             background: #e5e7eb;
             color: #4b5563;
+            white-space: nowrap;
         }}
         .task-status {{
             background: #dbeafe;
@@ -176,12 +182,45 @@ def generate_html_message(tasks: List[Dict], is_done: bool = False) -> Tuple[str
             color: #6b21a8;
         }}
         .footer {{
-            padding: 20px;
+            padding: 16px;
             text-align: center;
             background: #f9fafb;
             border-top: 1px solid #e5e7eb;
             color: #6b7280;
-            font-size: 12px;
+            font-size: 11px;
+        }}
+        
+        /* 移动端优化 */
+        @media (max-width: 480px) {{
+            body {{
+                padding: 8px;
+            }}
+            .header {{
+                padding: 20px 12px;
+            }}
+            .header h1 {{
+                font-size: 18px;
+            }}
+            .content {{
+                padding: 12px;
+            }}
+            .assignee-header {{
+                font-size: 15px;
+                padding: 8px 10px;
+            }}
+            .task-card {{
+                padding: 10px;
+            }}
+            .task-title {{
+                font-size: 14px;
+            }}
+            .task-meta {{
+                font-size: 10px;
+                gap: 4px;
+            }}
+            .task-meta span {{
+                padding: 2px 6px;
+            }}
         }}
     </style>
 </head>

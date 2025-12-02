@@ -135,6 +135,9 @@ class EmailService:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{subject}</title>
     <style>
+        * {{
+            box-sizing: border-box;
+        }}
         body {{
             margin: 0;
             padding: 0;
@@ -143,60 +146,62 @@ class EmailService:
         }}
         .email-container {{
             max-width: 600px;
-            margin: 40px auto;
+            margin: 20px auto;
             background: white;
-            border-radius: 16px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }}
         .header {{
             background: {color_gradient};
             color: white;
-            padding: 40px 30px;
+            padding: 28px 20px;
             text-align: center;
         }}
         .header h1 {{
             margin: 0;
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            line-height: 1.3;
         }}
         .header .date {{
-            margin: 12px 0 0 0;
-            font-size: 16px;
+            margin: 10px 0 0 0;
+            font-size: 14px;
             opacity: 0.95;
         }}
         .content {{
-            padding: 30px;
+            padding: 20px;
         }}
         .greeting {{
-            font-size: 18px;
+            font-size: 16px;
             color: #1f2937;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             line-height: 1.6;
         }}
         .assignee-section {{
-            margin-bottom: 35px;
+            margin-bottom: 28px;
         }}
         .assignee-header {{
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 16px;
+            padding: 10px 14px;
             background: #f9fafb;
             border-radius: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
+            border-left: 3px solid {color_primary};
         }}
         .assignee-name {{
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
             color: #111827;
         }}
         .assignee-count {{
-            font-size: 14px;
+            font-size: 12px;
             color: #6b7280;
             background: white;
-            padding: 4px 12px;
+            padding: 3px 10px;
             border-radius: 12px;
         }}
         .task-list {{
@@ -207,15 +212,11 @@ class EmailService:
         .task-item {{
             background: #ffffff;
             border: 1px solid #e5e7eb;
-            border-left: 4px solid {color_primary};
+            border-left: 3px solid {color_primary};
             border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            transition: all 0.2s;
-        }}
-        .task-item:hover {{
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            transform: translateY(-2px);
+            padding: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }}
         .task-item.priority-p0 {{
             border-left-color: #ef4444;
@@ -235,35 +236,39 @@ class EmailService:
         }}
         .task-number {{
             display: inline-block;
-            width: 24px;
-            height: 24px;
-            line-height: 24px;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
             text-align: center;
             background: {color_primary};
             color: white;
             border-radius: 50%;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
-            margin-right: 10px;
+            margin-right: 8px;
+            vertical-align: middle;
         }}
         .task-name {{
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 500;
             color: #111827;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+            line-height: 1.4;
+            word-break: break-word;
         }}
         .task-tags {{
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
+            gap: 6px;
+            margin-top: 8px;
         }}
         .tag {{
             display: inline-block;
-            padding: 4px 12px;
-            border-radius: 14px;
-            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
             font-weight: 500;
+            white-space: nowrap;
         }}
         .tag-status {{
             background: #dbeafe;
@@ -279,46 +284,46 @@ class EmailService:
         }}
         .stats-box {{
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-            border-radius: 12px;
-            padding: 25px;
-            margin-top: 30px;
+            border-radius: 10px;
+            padding: 18px;
+            margin-top: 24px;
         }}
         .stats-title {{
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
             color: #0c4a6e;
-            margin: 0 0 15px 0;
+            margin: 0 0 12px 0;
         }}
         .stats-grid {{
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
+            gap: 10px;
         }}
         .stat-item {{
             background: white;
-            padding: 12px;
+            padding: 10px;
             border-radius: 8px;
             text-align: center;
         }}
         .stat-value {{
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
             color: {color_primary};
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }}
         .stat-label {{
-            font-size: 13px;
+            font-size: 12px;
             color: #6b7280;
         }}
         .footer {{
             background: #f9fafb;
-            padding: 25px;
+            padding: 18px;
             text-align: center;
             border-top: 1px solid #e5e7eb;
         }}
         .footer p {{
-            margin: 5px 0;
-            font-size: 13px;
+            margin: 4px 0;
+            font-size: 12px;
             color: #6b7280;
         }}
         .footer a {{
@@ -327,15 +332,109 @@ class EmailService:
         }}
         .empty-state {{
             text-align: center;
-            padding: 60px 30px;
+            padding: 50px 20px;
         }}
         .empty-state-icon {{
-            font-size: 64px;
-            margin-bottom: 20px;
+            font-size: 56px;
+            margin-bottom: 16px;
         }}
         .empty-state-text {{
-            font-size: 18px;
+            font-size: 16px;
             color: #6b7280;
+        }}
+        
+        /* 移动端优化 */
+        @media (max-width: 480px) {{
+            .email-container {{
+                margin: 10px;
+                border-radius: 10px;
+            }}
+            .header {{
+                padding: 20px 16px;
+            }}
+            .header h1 {{
+                font-size: 18px;
+            }}
+            .header .date {{
+                font-size: 12px;
+            }}
+            .content {{
+                padding: 16px;
+            }}
+            .greeting {{
+                font-size: 14px;
+                margin-bottom: 16px;
+            }}
+            .assignee-section {{
+                margin-bottom: 20px;
+            }}
+            .assignee-header {{
+                padding: 8px 12px;
+            }}
+            .assignee-name {{
+                font-size: 15px;
+            }}
+            .assignee-count {{
+                font-size: 11px;
+                padding: 2px 8px;
+            }}
+            .task-item {{
+                padding: 10px;
+                margin-bottom: 8px;
+            }}
+            .task-number {{
+                width: 18px;
+                height: 18px;
+                line-height: 18px;
+                font-size: 10px;
+                margin-right: 6px;
+            }}
+            .task-name {{
+                font-size: 14px;
+            }}
+            .task-tags {{
+                gap: 4px;
+                margin-top: 6px;
+            }}
+            .tag {{
+                padding: 2px 8px;
+                font-size: 10px;
+            }}
+            .stats-box {{
+                padding: 14px;
+                margin-top: 18px;
+            }}
+            .stats-title {{
+                font-size: 14px;
+                margin-bottom: 10px;
+            }}
+            .stats-grid {{
+                gap: 8px;
+            }}
+            .stat-item {{
+                padding: 8px;
+            }}
+            .stat-value {{
+                font-size: 18px;
+            }}
+            .stat-label {{
+                font-size: 11px;
+            }}
+            .footer {{
+                padding: 14px;
+            }}
+            .footer p {{
+                font-size: 11px;
+            }}
+            .empty-state {{
+                padding: 40px 16px;
+            }}
+            .empty-state-icon {{
+                font-size: 48px;
+            }}
+            .empty-state-text {{
+                font-size: 14px;
+            }}
         }}
     </style>
 </head>
