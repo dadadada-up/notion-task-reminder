@@ -42,6 +42,66 @@ def generate_html_message(tasks: List[Dict], is_done: bool = False) -> Tuple[str
     now = datetime.now(timezone.utc).astimezone(beijing_tz)
     time_str = now.strftime('%Y-%m-%d %H:%M:%S')
     
+    # 如果是已完成任务，计算统计数据
+    stats_html = ""
+    if is_done and tasks:
+        total_tasks = len(tasks)
+        
+        # 统计优先级
+        priority_count = {'P0': 0, 'P1': 0, 'P2': 0, 'P3': 0}
+        task_types = {}
+        
+        for task in tasks:
+            priority = task.get('priority', 'P3 不重要不紧急')
+            priority_key = priority.split()[0] if ' ' in priority else priority
+            priority_count[priority_key] = priority_count.get(priority_key, 0) + 1
+            
+            task_type = task.get('task_type', '未分类')
+            task_types[task_type] = task_types.get(task_type, 0) + 1
+        
+        important_count = priority_count.get('P0', 0) + priority_count.get('P1', 0)
+        urgent_count = priority_count.get('P0', 0) + priority_count.get('P2', 0)
+        
+        # 生成统计卡片
+        stats_html = f'''
+        <div class="stats-section">
+            <div class="stats-header">📊 今日统计</div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{total_tasks}</div>
+                    <div class="stat-label">完成任务</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{important_count}</div>
+                    <div class="stat-label">重要任务</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{urgent_count}</div>
+                    <div class="stat-label">紧急任务</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{len(task_types)}</div>
+                    <div class="stat-label">任务类型</div>
+                </div>
+            </div>
+            <div class="priority-breakdown">
+                <div class="breakdown-title">优先级分布</div>
+                <div class="breakdown-items">
+                    <span class="breakdown-item" style="color: #ef4444;">P0: {priority_count.get('P0', 0)}</span>
+                    <span class="breakdown-item" style="color: #f59e0b;">P1: {priority_count.get('P1', 0)}</span>
+                    <span class="breakdown-item" style="color: #3b82f6;">P2: {priority_count.get('P2', 0)}</span>
+                    <span class="breakdown-item" style="color: #6b7280;">P3: {priority_count.get('P3', 0)}</span>
+                </div>
+            </div>
+            <div class="type-breakdown">
+                <div class="breakdown-title">任务类型</div>
+                <div class="breakdown-items">
+                    {' · '.join([f"{t}: {c}" for t, c in task_types.items()])}
+                </div>
+            </div>
+        </div>
+        '''
+    
     # 生成任务卡片
     content_html = ""
     
@@ -181,6 +241,65 @@ def generate_html_message(tasks: List[Dict], is_done: bool = False) -> Tuple[str
             background: #f3e8ff;
             color: #6b21a8;
         }}
+        .stats-section {{
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid #bbf7d0;
+        }}
+        .stats-header {{
+            font-size: 16px;
+            font-weight: 600;
+            color: #166534;
+            margin-bottom: 12px;
+            text-align: center;
+        }}
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 12px;
+        }}
+        .stat-card {{
+            background: white;
+            border-radius: 8px;
+            padding: 12px 8px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }}
+        .stat-value {{
+            font-size: 24px;
+            font-weight: 700;
+            color: #059669;
+            margin-bottom: 4px;
+        }}
+        .stat-label {{
+            font-size: 11px;
+            color: #6b7280;
+        }}
+        .priority-breakdown, .type-breakdown {{
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 8px;
+        }}
+        .breakdown-title {{
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }}
+        .breakdown-items {{
+            font-size: 12px;
+            color: #6b7280;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }}
+        .breakdown-item {{
+            font-weight: 600;
+        }}
         .footer {{
             padding: 16px;
             text-align: center;
@@ -203,6 +322,23 @@ def generate_html_message(tasks: List[Dict], is_done: bool = False) -> Tuple[str
             }}
             .content {{
                 padding: 12px;
+            }}
+            .stats-grid {{
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }}
+            .stat-card {{
+                padding: 10px 6px;
+            }}
+            .stat-value {{
+                font-size: 20px;
+            }}
+            .stat-label {{
+                font-size: 10px;
+            }}
+            .breakdown-items {{
+                font-size: 11px;
+                gap: 8px;
             }}
             .assignee-header {{
                 font-size: 15px;
@@ -231,6 +367,7 @@ def generate_html_message(tasks: List[Dict], is_done: bool = False) -> Tuple[str
             <p>{time_str}</p>
         </div>
         <div class="content">
+            {stats_html}
             {content_html if content_html else '<p style="text-align: center; color: #6b7280;">暂无任务</p>'}
         </div>
         <div class="footer">

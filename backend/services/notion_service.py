@@ -8,6 +8,7 @@ import os
 import pytz
 import time
 from typing import List, Dict, Optional
+import mimetypes
 
 class NotionService:
     def __init__(self):
@@ -192,6 +193,35 @@ class NotionService:
                     "rich_text": [{"text": {"content": task_data['notes']}}]
                 }
             
+            # 添加图片（支持外部链接和 file_upload）
+            if 'images' in task_data and task_data['images']:
+                files = []
+                for img in task_data['images']:
+                    if isinstance(img, dict):
+                        if 'file_upload_id' in img:
+                            # Notion File Upload 格式
+                            files.append({
+                                "name": img.get('name', 'image'),
+                                "type": "file_upload",
+                                "file_upload": {"id": img['file_upload_id']}
+                            })
+                        elif 'url' in img:
+                            # 外部链接格式
+                            files.append({
+                                "name": img.get('name', 'image'),
+                                "type": "external",
+                                "external": {"url": img['url']}
+                            })
+                    elif isinstance(img, str):
+                        # 直接是URL字符串
+                        files.append({
+                            "name": "image",
+                            "type": "external",
+                            "external": {"url": img}
+                        })
+                if files:
+                    properties['图片'] = {"files": files}
+            
             # 添加父任务关联（如果提供了 parent_ids）
             if 'parent_ids' in task_data and task_data['parent_ids']:
                 # 使用"上级 项目"关系属性（注意中间有空格）
@@ -273,6 +303,38 @@ class NotionService:
                     }
                 else:
                     properties['备注'] = {"rich_text": []}
+            
+            # 更新图片（支持外部链接和 file_upload）
+            if 'images' in updates:
+                if updates['images']:
+                    files = []
+                    for img in updates['images']:
+                        if isinstance(img, dict):
+                            if 'file_upload_id' in img:
+                                # Notion File Upload 格式
+                                files.append({
+                                    "name": img.get('name', 'image'),
+                                    "type": "file_upload",
+                                    "file_upload": {"id": img['file_upload_id']}
+                                })
+                            elif 'url' in img:
+                                # 外部链接格式
+                                files.append({
+                                    "name": img.get('name', 'image'),
+                                    "type": "external",
+                                    "external": {"url": img['url']}
+                                })
+                        elif isinstance(img, str):
+                            # 直接是URL字符串
+                            files.append({
+                                "name": "image",
+                                "type": "external",
+                                "external": {"url": img}
+                            })
+                    properties['图片'] = {"files": files}
+                else:
+                    # 清空图片
+                    properties['图片'] = {"files": []}
             
             # 添加父任务关联（如果提供了 parent_ids）
             if 'parent_ids' in updates:
@@ -539,6 +601,31 @@ class NotionService:
         if unique_id_obj and unique_id_obj.get('unique_id'):
             unique_id = unique_id_obj.get('unique_id', {}).get('prefix') + '-' + str(unique_id_obj.get('unique_id', {}).get('number', ''))
         
+        # 获取图片
+        images_obj = properties.get('图片', {})
+        images = []
+        if images_obj and images_obj.get('files'):
+            files_list = images_obj.get('files', [])
+            for file in files_list:
+                if file:
+                    # Notion files 字段可能包含外部文件或内部文件
+                    file_info = {
+                        'name': file.get('name', ''),
+                        'type': file.get('type', 'file')  # 'file' 或 'external'
+                    }
+                    
+                    # 根据类型获取URL
+                    if file.get('type') == 'external':
+                        file_info['url'] = file.get('external', {}).get('url', '')
+                    else:
+                        file_info['url'] = file.get('file', {}).get('url', '')
+                    
+                    # 添加过期时间（Notion内部文件URL会过期）
+                    if file.get('file') and file.get('file', {}).get('expiry_time'):
+                        file_info['expiry_time'] = file.get('file', {}).get('expiry_time')
+                    
+                    images.append(file_info)
+        
         return {
             'id': result.get('id'),
             'name': name,
@@ -557,5 +644,111 @@ class NotionService:
             'completed_time': completed_time,
             'email': email,
             'unique_id': unique_id,
-            'notes': notes
+            'notes': notes,
+            'images': images
         }
+    
+    def create_file_upload(self, filename: str = None, content_type: str = None) -> Dict:
+        """
+        创建 File Upload 对象（Notion File Upload API Step 1）
+        
+        Args:
+            filename: 文件名（可选）
+            content_type: MIME 类型（可选，如 'image/png'）
+            
+        Returns:
+            包含 id 和 upload_url 的字典
+        """
+        try:
+            url = f"{self.base_url}/file_uploads"
+            
+            payload = {}
+            if filename:
+                payload['filename'] = filename
+            if content_type:
+                payload['content_type'] = content_type
+            
+            response = requests.post(url, headers=self.headers, json=payload)
+            
+            if response.status_code != 200:
+                raise Exception(f"创建 File Upload 失败: {response.text}")
+            
+            result = response.json()
+            print(f"✅ 创建 File Upload 成功: {result.get('id')}")
+            return result
+            
+        except Exception as e:
+            print(f"❌ 创建 File Upload 失败: {str(e)}")
+            raise
+    
+    def upload_file_content(self, upload_id: str, file_content: bytes, content_type: str = 'image/png') -> Dict:
+        """
+        上传文件内容（Notion File Upload API Step 2）
+        
+        Args:
+            upload_id: File Upload 对象的 ID
+            file_content: 文件的二进制内容
+            content_type: MIME 类型
+            
+        Returns:
+            上传结果
+        """
+        try:
+            url = f"{self.base_url}/file_uploads/{upload_id}/send"
+            
+            # 使用 multipart/form-data 上传
+            files = {
+                'file': ('image', file_content, content_type)
+            }
+            
+            # 注意：这里不使用 self.headers，因为 Content-Type 需要是 multipart/form-data
+            headers = {
+                "Authorization": f"Bearer {self.token}",
+                "Notion-Version": "2022-06-28"
+            }
+            
+            response = requests.post(url, headers=headers, files=files)
+            
+            if response.status_code != 200:
+                raise Exception(f"上传文件内容失败: {response.text}")
+            
+            result = response.json()
+            print(f"✅ 上传文件内容成功: {upload_id}")
+            return result
+            
+        except Exception as e:
+            print(f"❌ 上传文件内容失败: {str(e)}")
+            raise
+    
+    def upload_image_to_notion(self, file_content: bytes, filename: str = 'image.png') -> str:
+        """
+        完整的图片上传流程（Step 1 + Step 2）
+        
+        Args:
+            file_content: 图片的二进制内容
+            filename: 文件名
+            
+        Returns:
+            file_upload_id: 上传成功后的文件 ID
+        """
+        try:
+            # 检测文件类型
+            content_type, _ = mimetypes.guess_type(filename)
+            if not content_type or not content_type.startswith('image/'):
+                content_type = 'image/png'  # 默认类型
+            
+            print(f"📤 开始上传图片: {filename} ({content_type})")
+            
+            # Step 1: 创建 File Upload 对象
+            file_upload = self.create_file_upload(filename=filename, content_type=content_type)
+            upload_id = file_upload['id']
+            
+            # Step 2: 上传文件内容
+            self.upload_file_content(upload_id, file_content, content_type)
+            
+            print(f"✅ 图片上传完成: {upload_id}")
+            return upload_id
+            
+        except Exception as e:
+            print(f"❌ 图片上传失败: {str(e)}")
+            raise

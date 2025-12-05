@@ -527,7 +527,7 @@ class WeeklySummaryService:
             'year': week_start.year,
             'theme': {
                 'title': '平静的一周',
-                'description': '本周没有完成任务记录。也许是在休息调整，也许是在酝酿新的计划。'
+                'description': '本周没有完成任务记录。也许是在休息调整,也许是在酝酿新的计划。'
             },
             'completed': {
                 'total': 0,
@@ -541,3 +541,168 @@ class WeeklySummaryService:
                 'concerns': []
             }
         }
+    
+    def get_available_weeks(self, limit: int = 52) -> List[Dict]:
+        """
+        获取有完成任务的历史周列表
+        
+        Args:
+            limit: 最多返回多少周
+            
+        Returns:
+            周列表，每项包含 week_start, week_end, week_number, year, task_count
+        """
+        try:
+            # 获取所有任务
+            all_tasks = self.notion_service.get_tasks()
+            
+            # 获取所有已完成任务的完成时间
+            completed_dates = []
+            for task in all_tasks:
+                if task.get('status') == '已完成' and task.get('completed_time'):
+                    try:
+                        completed_time = datetime.fromisoformat(
+                            task['completed_time'].replace('Z', '+00:00')
+                        )
+                        completed_time = completed_time.astimezone(self.beijing_tz)
+                        completed_dates.append(completed_time)
+                    except:
+                        pass
+            
+            if not completed_dates:
+                return []
+            
+            # 找出最早和最晚的完成时间
+            earliest = min(completed_dates)
+            latest = max(completed_dates)
+            
+            # 生成周列表（从上周开始往前推）
+            weeks = []
+            now = datetime.now(self.beijing_tz)
+            current_monday = now - timedelta(days=now.weekday())
+            
+            # 从上周开始
+            week_start = current_monday - timedelta(days=7)
+            
+            while len(weeks) < limit and week_start >= earliest - timedelta(days=7):
+                week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+                
+                # 统计这周的任务数
+                task_count = sum(1 for d in completed_dates 
+                               if week_start <= d <= week_end)
+                
+                # 只返回有任务的周
+                if task_count > 0:
+                    weeks.append({
+                        'week_start': week_start.strftime('%Y-%m-%d'),
+                        'week_end': week_end.strftime('%Y-%m-%d'),
+                        'week_number': week_start.isocalendar()[1],
+                        'year': week_start.year,
+                        'task_count': task_count
+                    })
+                
+                # 往前推一周
+                week_start -= timedelta(days=7)
+            
+            return weeks
+            
+        except Exception as e:
+            print(f"Error getting available weeks: {str(e)}")
+            return []
+    
+    def generate_markdown(self, summary: Dict) -> str:
+        """
+        生成 Markdown 格式的周总结
+        
+        Args:
+            summary: 周总结数据
+            
+        Returns:
+            Markdown 格式的文本
+        """
+        md = []
+        
+        # 标题
+        md.append(f"# 我的一周")
+        md.append("")
+        md.append(f"**{summary['year']}年第{summary['week_number']}周** ({summary['week_start']} ~ {summary['week_end']})")
+        md.append("")
+        
+        # 本周主题
+        md.append(f"## 本周主题：{summary['theme']['title']}")
+        md.append("")
+        md.append(summary['theme']['description'])
+        md.append("")
+        
+        # 本周完成概览
+        md.append(f"## 本周完成概览")
+        md.append("")
+        md.append(f"共完成 **{summary['completed']['total']}** 件事")
+        md.append("")
+        
+        # 按类型展示
+        for task_type, data in summary['completed']['by_type'].items():
+            type_icons = {
+                '家庭生活': '',
+                '工作学习': '',
+                '理财投资': '',
+                '个人成长': '',
+                '健康运动': '',
+            }
+            icon = type_icons.get(task_type, '')
+            
+            md.append(f"### {icon} {task_type} ({data['count']}件 - {data['percentage']}%)")
+            md.append("")
+            
+            # 重点事项
+            if data['key_items']:
+                md.append(f"**重点事项：** {', '.join(data['key_items'])}")
+                md.append("")
+            
+            # 摘要
+            md.append(data['summary'])
+            md.append("")
+            
+            # 任务列表
+            for task in data['tasks']:
+                priority_short = task['priority'].split()[0] if ' ' in task['priority'] else task['priority']
+                md.append(f"- {task['name']} `{priority_short}`")
+            
+            md.append("")
+        
+        # 值得记录的时刻
+        if summary['highlights']:
+            md.append("## 值得记录的时刻")
+            md.append("")
+            
+            for highlight in summary['highlights']:
+                md.append(f"### {highlight['title']}")
+                md.append("")
+                md.append(highlight['content'])
+                md.append("")
+        
+        # 一些思考
+        if summary['reflections']['suggestions'] or summary['reflections']['concerns']:
+            md.append("## 一些思考")
+            md.append("")
+            
+            if summary['reflections']['suggestions']:
+                md.append("### 下周可以考虑")
+                md.append("")
+                for suggestion in summary['reflections']['suggestions']:
+                    md.append(f"- {suggestion}")
+                md.append("")
+            
+            if summary['reflections']['concerns']:
+                md.append("### 需要关注")
+                md.append("")
+                for concern in summary['reflections']['concerns']:
+                    md.append(f"- {concern}")
+                md.append("")
+        
+        # 底部
+        md.append("---")
+        md.append("")
+        md.append("*Generated by Notion Task Manager*")
+        
+        return '\n'.join(md)

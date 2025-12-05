@@ -159,6 +159,76 @@ def update_task(task_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/upload-image', methods=['POST'])
+def upload_image():
+    """
+    上传图片到 Notion
+    接收文件并返回 file_upload_id
+    """
+    try:
+        # 检查是否有文件
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': '没有上传文件'
+            }), 400
+        
+        file = request.files['file']
+        
+        # 检查文件名
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': '文件名为空'
+            }), 400
+        
+        # 检查文件类型
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        
+        if file_ext not in allowed_extensions:
+            return jsonify({
+                'success': False,
+                'error': f'不支持的文件类型。支持的类型: {", ".join(allowed_extensions)}'
+            }), 400
+        
+        # 检查文件大小（20MB 限制）
+        file.seek(0, 2)  # 移动到文件末尾
+        file_size = file.tell()
+        file.seek(0)  # 重置到文件开头
+        
+        max_size = 20 * 1024 * 1024  # 20MB
+        if file_size > max_size:
+            return jsonify({
+                'success': False,
+                'error': f'文件大小超过限制（最大 20MB）'
+            }), 400
+        
+        # 读取文件内容
+        file_content = file.read()
+        
+        # 上传到 Notion
+        file_upload_id = notion_service.upload_image_to_notion(
+            file_content=file_content,
+            filename=file.filename
+        )
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'file_upload_id': file_upload_id,
+                'filename': file.filename,
+                'size': file_size
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ 上传图片失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     """获取任务统计数据"""
@@ -369,6 +439,52 @@ def get_weekly_summary():
         return jsonify({
             'success': True,
             'data': summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/weekly-summary/weeks', methods=['GET'])
+def get_available_weeks():
+    """
+    获取有完成任务的历史周列表
+    Query Parameters:
+    - limit: 最多返回多少周，默认52
+    """
+    try:
+        limit = int(request.args.get('limit', 52))
+        weeks = weekly_summary_service.get_available_weeks(limit)
+        
+        return jsonify({
+            'success': True,
+            'data': weeks
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/weekly-summary/markdown', methods=['GET'])
+def get_weekly_summary_markdown():
+    """
+    获取 Markdown 格式的周总结
+    Query Parameters:
+    - week: 'current', 'last', 或具体日期 'YYYY-MM-DD'
+    """
+    try:
+        week = request.args.get('week', 'current')
+        summary = weekly_summary_service.get_weekly_summary(week)
+        markdown = weekly_summary_service.generate_markdown(summary)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'markdown': markdown,
+                'summary': summary
+            }
         })
     except Exception as e:
         return jsonify({

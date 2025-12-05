@@ -537,6 +537,21 @@ class EmailService:
                         <div class="stat-label">任务类型</div>
                     </div>
                 </div>
+                <div style="margin-top: 12px; padding: 10px; background: white; border-radius: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px;">优先级分布</div>
+                    <div style="font-size: 12px; color: #6b7280; display: flex; gap: 12px; flex-wrap: wrap;">
+                        <span style="color: #ef4444; font-weight: 600;">P0: {priorities.get('P0', 0)}</span>
+                        <span style="color: #f59e0b; font-weight: 600;">P1: {priorities.get('P1', 0)}</span>
+                        <span style="color: #3b82f6; font-weight: 600;">P2: {priorities.get('P2', 0)}</span>
+                        <span style="color: #6b7280; font-weight: 600;">P3: {priorities.get('P3', 0)}</span>
+                    </div>
+                </div>
+                <div style="margin-top: 8px; padding: 10px; background: white; border-radius: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px;">任务类型</div>
+                    <div style="font-size: 12px; color: #6b7280;">
+                        {' · '.join([f"{t}: {c}" for t, c in task_types.items()])}
+                    </div>
+                </div>
             </div>
 """
         

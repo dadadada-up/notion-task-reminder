@@ -81,10 +81,37 @@ export const fetchWeeklySummary = async (week: string = 'current'): Promise<Week
   return response.data.data
 }
 
+export const fetchAvailableWeeks = async (limit: number = 52): Promise<any[]> => {
+  const response = await axios.get(`${API_BASE_URL}/weekly-summary/weeks`, {
+    params: { limit }
+  })
+  return response.data.data
+}
+
+export const fetchWeeklySummaryMarkdown = async (week: string = 'current'): Promise<{ markdown: string, summary: WeeklySummary }> => {
+  const response = await axios.get(`${API_BASE_URL}/weekly-summary/markdown`, {
+    params: { week }
+  })
+  return response.data.data
+}
+
 export const pushWeeklySummary = async (week: string, channels: string[]): Promise<any> => {
   const response = await axios.post(`${API_BASE_URL}/weekly-summary/push`, {
     week,
     channels
   })
   return response.data
+}
+
+// 上传图片到 Notion
+export const uploadImage = async (file: File): Promise<{ file_upload_id: string; filename: string; size: number }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  const response = await axios.post(`${API_BASE_URL}/upload-image`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+  return response.data.data
 }

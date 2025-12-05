@@ -223,6 +223,45 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
               </div>
             )}
 
+            {/* Images */}
+            {task.images && task.images.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">图片 ({task.images.length})</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {task.images.map((image, index) => (
+                    <div key={index} className="relative group">
+                      <a 
+                        href={image.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="block"
+                      >
+                        <img
+                          src={image.url}
+                          alt={image.name || `图片 ${index + 1}`}
+                          className="w-full h-40 object-cover rounded-lg border border-gray-200 hover:border-purple-400 transition-colors cursor-pointer"
+                          onError={(e) => {
+                            // 图片加载失败时显示占位符
+                            e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="14" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3E图片加载失败%3C/text%3E%3C/svg%3E'
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity rounded-lg flex items-center justify-center">
+                          <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">
+                            点击查看大图
+                          </span>
+                        </div>
+                      </a>
+                      {image.name && (
+                        <p className="mt-1 text-xs text-gray-500 truncate" title={image.name}>
+                          {image.name}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 关系字段 */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">关系字段</h3>

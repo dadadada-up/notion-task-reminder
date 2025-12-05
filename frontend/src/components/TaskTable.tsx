@@ -154,6 +154,9 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                 备注
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                图片
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 操作
               </th>
             </tr>
@@ -161,7 +164,7 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
           <tbody className="bg-white divide-y divide-gray-200">
             {sortedTasks.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center text-gray-400">
+                <td colSpan={11} className="px-6 py-12 text-center text-gray-400">
                   暂无任务
                 </td>
               </tr>
@@ -206,6 +209,15 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                     {task.notes ? (
                       <div className="text-gray-600 max-w-xs">
                         {task.notes}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {task.images && task.images.length > 0 ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-600">📷 {task.images.length}</span>
                       </div>
                     ) : (
                       <span className="text-gray-400">-</span>

@@ -1,3 +1,11 @@
+export interface TaskImage {
+  name: string
+  url: string
+  type: 'file' | 'external' | 'file_upload'
+  expiry_time?: string
+  file_upload_id?: string  // 用于上传的文件ID
+}
+
 export interface Task {
   id: string
   name: string
@@ -17,6 +25,7 @@ export interface Task {
   email?: string
   unique_id?: string
   notes?: string
+  images?: TaskImage[]
 }
 
 export interface Stats {

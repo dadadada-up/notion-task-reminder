@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
-import { Task } from '../types'
+import { useState, useEffect, useRef } from 'react'
+import { X, Trash2, Upload, Loader } from 'lucide-react'
+import { Task, TaskImage } from '../types'
 import TaskSelector from './TaskSelector'
+import { uploadImage } from '../api'
 
 interface TaskModalProps {
   task?: Task | null
@@ -15,7 +16,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
   const [formData, setFormData] = useState({
     name: '',
     status: '收集箱' as Task['status'],
-    priority: 'P3 不重要不紲急',
+    priority: 'P3 不重要不紧急',
     task_type: '个人成长',
     assignee: 'dada',
     email: 'dadadada_up@163.com',
@@ -24,8 +25,11 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
     notes: '',
     parent_ids: [] as string[],
     completed_time: undefined as string | undefined,
+    images: [] as TaskImage[],
   })
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (task) {
@@ -41,6 +45,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         notes: task.notes || '',
         parent_ids: task.parent_ids || [],
         completed_time: task.completed_time,
+        images: task.images || [],
       })
     } else if (parentTask) {
       // 创建子任务，继承父任务所有属性（除了任务名称）
@@ -56,6 +61,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         notes: '',
         parent_ids: [parentTask.id],
         completed_time: undefined,
+        images: [],
       })
     } else {
       // 获取今天的日期（YYYY-MM-DD格式）
@@ -63,16 +69,17 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
       
       setFormData({
         name: '',
-        status: '进行中',  // 默认状态改为"进行中"
+        status: '进行中',
         priority: 'P3 不重要不紧急',
         task_type: '个人成长',
         assignee: 'dada',
         email: 'dadadada_up@163.com',
-        start_date: today,  // 默认开始日期为今天
-        deadline: today,    // 默认截止日期为今天
+        start_date: today,
+        deadline: today,
         notes: '',
         parent_ids: [],
         completed_time: undefined,
+        images: [],
       })
     }
   }, [task, parentTask, isOpen])
@@ -313,6 +320,129 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                 placeholder="添加备注信息..."
               />
+            </div>
+
+            {/* 图片管理 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                图片 ({formData.images.length})
+              </label>
+              
+              {/* 图片列表 */}
+              {formData.images.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {formData.images.map((image, index) => (
+                    <div key={index} className="relative group">
+                      <a 
+                        href={image.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="block"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <img
+                          src={image.url}
+                          alt={image.name || `图片 ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg border border-gray-200 hover:border-purple-400 transition-colors"
+                          onError={(e) => {
+                            e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f3f4f6" width="100" height="100"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3E加载失败%3C/text%3E%3C/svg%3E'
+                          }}
+                        />
+                      </a>
+                      {/* 删除按钮 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newImages = formData.images.filter((_, i) => i !== index)
+                          setFormData({ ...formData, images: newImages })
+                        }}
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      {image.name && (
+                        <p className="mt-1 text-xs text-gray-500 truncate" title={image.name}>
+                          {image.name}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* 添加图片 - 文件上传 */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = e.target.files
+                  if (!files || files.length === 0) return
+                  
+                  setUploading(true)
+                  try {
+                    // 上传所有选中的文件
+                    const uploadPromises = Array.from(files).map(async (file) => {
+                      try {
+                        const result = await uploadImage(file)
+                        return {
+                          file_upload_id: result.file_upload_id,
+                          name: result.filename,
+                          type: 'file_upload' as const,
+                          url: '' // 占位符，实际URL由Notion生成
+                        }
+                      } catch (error) {
+                        console.error(`上传 ${file.name} 失败:`, error)
+                        alert(`上传 ${file.name} 失败，请重试`)
+                        return null
+                      }
+                    })
+                    
+                    const uploadedImages = (await Promise.all(uploadPromises)).filter(img => img !== null) as TaskImage[]
+                    
+                    if (uploadedImages.length > 0) {
+                      setFormData({
+                        ...formData,
+                        images: [...formData.images, ...uploadedImages]
+                      })
+                    }
+                  } catch (error) {
+                    console.error('上传图片失败:', error)
+                    alert('上传图片失败，请重试')
+                  } finally {
+                    setUploading(false)
+                    // 重置文件输入
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = ''
+                    }
+                  }
+                }}
+              />
+              
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-md text-gray-600 hover:border-purple-400 hover:text-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    上传中...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    上传图片
+                  </>
+                )}
+              </button>
+              
+              <p className="text-xs text-gray-500 mt-2">
+                💡 支持直接上传图片文件（最大 20MB，支持 JPG、PNG、GIF 等格式）
+              </p>
             </div>
 
             {/* Actions */}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { WeeklySummary } from '../types'
-import { fetchWeeklySummary, pushWeeklySummary } from '../api'
-import { Calendar, TrendingUp, Lightbulb, MessageSquare, Send, ChevronDown, ChevronUp } from 'lucide-react'
+import { fetchWeeklySummary, pushWeeklySummary, fetchAvailableWeeks, fetchWeeklySummaryMarkdown } from '../api'
+import { Calendar, TrendingUp, Lightbulb, MessageSquare, Send, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
 
 const WeeklySummaryPage = () => {
   const [summary, setSummary] = useState<WeeklySummary | null>(null)
@@ -9,10 +9,30 @@ const WeeklySummaryPage = () => {
   const [loading, setLoading] = useState(true)
   const [expandedTypes, setExpandedTypes] = useState<string[]>([])
   const [pushing, setPushing] = useState(false)
+  const [availableWeeks, setAvailableWeeks] = useState<any[]>([])
+  const [viewMode, setViewMode] = useState<'preview' | 'source'>('preview')
+  const [markdown, setMarkdown] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [loadingMarkdown, setLoadingMarkdown] = useState(false)
+
+  useEffect(() => {
+    loadAvailableWeeks()
+  }, [])
 
   useEffect(() => {
     loadSummary()
+    setMarkdown('') // 清空 markdown 缓存
+    setViewMode('preview') // 重置为预览模式
   }, [selectedWeek])
+
+  const loadAvailableWeeks = async () => {
+    try {
+      const weeks = await fetchAvailableWeeks(52)
+      setAvailableWeeks(weeks)
+    } catch (error) {
+      console.error('Failed to load available weeks:', error)
+    }
+  }
 
   const loadSummary = async () => {
     setLoading(true)
@@ -39,6 +59,39 @@ const WeeklySummaryPage = () => {
       alert('推送失败，请重试')
     } finally {
       setPushing(false)
+    }
+  }
+
+  const loadMarkdown = async () => {
+    if (!summary || markdown) return
+    
+    setLoadingMarkdown(true)
+    try {
+      const data = await fetchWeeklySummaryMarkdown(selectedWeek)
+      setMarkdown(data.markdown)
+    } catch (error) {
+      console.error('Failed to generate markdown:', error)
+      alert('生成 Markdown 失败，请重试')
+    } finally {
+      setLoadingMarkdown(false)
+    }
+  }
+
+  const handleViewModeChange = async (mode: 'preview' | 'source') => {
+    setViewMode(mode)
+    if (mode === 'source' && !markdown) {
+      await loadMarkdown()
+    }
+  }
+
+  const handleCopyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(markdown)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy:', error)
+      alert('复制失败，请重试')
     }
   }
 
@@ -117,16 +170,66 @@ const WeeklySummaryPage = () => {
         >
           <option value="current">本周</option>
           <option value="last">上周</option>
+          {availableWeeks.map((week) => (
+            <option key={week.week_start} value={week.week_start}>
+              {week.year}年第{week.week_number}周 ({week.task_count}件)
+            </option>
+          ))}
         </select>
       </div>
 
-      {/* 周期信息 */}
+      {/* 周期信息和模式切换 */}
       <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4">
-        <p className="text-lg text-gray-700">
-          📅 {summary.year}年第{summary.week_number}周 ({formatDate(summary.week_start)} - {formatDate(summary.week_end)})
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-lg text-gray-700">
+            📅 {summary.year}年第{summary.week_number}周 ({formatDate(summary.week_start)} - {formatDate(summary.week_end)})
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleViewModeChange('preview')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                viewMode === 'preview'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              👁️ 预览模式
+            </button>
+            <button
+              onClick={() => handleViewModeChange('source')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                viewMode === 'source'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              📝 源码模式
+            </button>
+            {viewMode === 'source' && (
+              <button
+                onClick={handleCopyMarkdown}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    已复制
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    复制
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
+      {/* 内容区域 */}
+      {viewMode === 'preview' ? (
+        <>
       {/* 本周主题 */}
       <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
         <div className="flex items-start gap-3">
@@ -296,6 +399,26 @@ const WeeklySummaryPage = () => {
           {pushing ? '推送中...' : '📤 推送周记'}
         </button>
       </div>
+      </>
+      ) : (
+        <>
+      {/* Markdown 源码视图 */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        {loadingMarkdown ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">生成 Markdown 中...</p>
+            </div>
+          </div>
+        ) : (
+          <pre className="bg-gray-50 p-6 rounded-lg text-sm font-mono whitespace-pre-wrap break-words overflow-auto max-h-[70vh] border border-gray-200">
+            {markdown}
+          </pre>
+        )}
+      </div>
+      </>
+      )}
     </div>
   )
 }
