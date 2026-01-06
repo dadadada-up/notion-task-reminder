@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Trash2, Upload, Loader } from 'lucide-react'
+import { X, Trash2, Upload, Loader, FileText } from 'lucide-react'
 import { Task, TaskImage } from '../types'
 import TaskSelector from './TaskSelector'
 import { uploadImage } from '../api'
@@ -125,12 +125,26 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
             <h2 className="text-xl font-semibold text-gray-900">
               {task ? '编辑任务' : '新建任务'}
             </h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              {task && task.url && (
+                <a
+                  href={task.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  title="在 Notion 中打开页面，编辑长文档内容"
+                >
+                  <FileText className="w-4 h-4" />
+                  打开页面
+                </a>
+              )}
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           {/* Form */}
@@ -320,6 +334,15 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                 placeholder="添加备注信息..."
               />
+              {task && task.url ? (
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 需要编辑长文档？点击右上角「打开页面」按钮，在 Notion 中编辑完整内容
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 创建任务后，可以在 Notion 页面中添加富文本、代码块、表格等长文档内容
+                </p>
+              )}
             </div>
 
             {/* 图片管理 */}

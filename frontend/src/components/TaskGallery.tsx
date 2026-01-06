@@ -3,6 +3,7 @@ import { Task } from '../types'
 import { Calendar, User, Flag, Tag, CheckCircle2 } from 'lucide-react'
 import { updateTask, fetchTasks } from '../api'
 import { formatDate, formatDateTime } from '../utils/dateFormat'
+import PriorityBadge from './PriorityBadge'
 
 interface TaskGalleryProps {
   tasks: Task[]
@@ -108,13 +109,6 @@ const TaskGallery = ({ tasks, onTaskClick, onTaskUpdate }: TaskGalleryProps) => 
     return colors[status] || 'border-gray-400 bg-gray-50'
   }
 
-  const getPriorityIcon = (priority: string) => {
-    if (priority.includes('P0')) return '🔴'
-    if (priority.includes('P1')) return '🔵'
-    if (priority.includes('P2')) return '🟠'
-    return '⚪'
-  }
-
   const getTaskTypeIcon = (taskType: string) => {
     const icons: Record<string, string> = {
       '家庭生活': '🏠',
@@ -160,8 +154,8 @@ const TaskGallery = ({ tasks, onTaskClick, onTaskUpdate }: TaskGalleryProps) => 
           
           <div onClick={() => onTaskClick(task)} className="cursor-pointer">
           {/* Priority Badge */}
-          <div className="absolute top-3 right-3 text-xl">
-            {getPriorityIcon(task.priority)}
+          <div className="absolute top-3 right-3">
+            <PriorityBadge priority={task.priority} size="sm" />
           </div>
 
             {/* Task Name */}

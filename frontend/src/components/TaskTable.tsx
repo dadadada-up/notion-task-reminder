@@ -1,6 +1,7 @@
 import { Task } from '../types'
 import { ExternalLink } from 'lucide-react'
 import { formatDate as formatDateUtil } from '../utils/dateFormat'
+import PriorityBadge from './PriorityBadge'
 
 interface TaskTableProps {
   tasks: Task[]
@@ -81,20 +82,6 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
     )
   }
 
-  const getPriorityBadge = (priority: string) => {
-    const priorityConfig: Record<string, string> = {
-      'P0 重要紧急': 'bg-red-100 text-red-700',
-      'P1 重要不紧急': 'bg-orange-100 text-orange-700',
-      'P2 紧急不重要': 'bg-purple-100 text-purple-700',
-      'P3 不重要不紧急': 'bg-gray-100 text-gray-700',
-    }
-    const color = priorityConfig[priority] || 'bg-gray-100 text-gray-700'
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${color}`}>
-        {priority.split(' ')[0]}
-      </span>
-    )
-  }
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return '-'
@@ -185,7 +172,7 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                     {getStatusBadge(task.status)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {getPriorityBadge(task.priority)}
+                    <PriorityBadge priority={task.priority} size="sm" />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900">{task.assignee}</span>

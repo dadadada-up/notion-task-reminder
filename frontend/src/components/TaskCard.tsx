@@ -1,5 +1,6 @@
 import { Task } from '../types'
 import { ExternalLink, AlertCircle } from 'lucide-react'
+import PriorityBadge from './PriorityBadge'
 
 interface TaskCardProps {
   task: Task
@@ -10,13 +11,12 @@ interface TaskCardProps {
 const TaskCard = ({ task, onDragStart, onClick }: TaskCardProps) => {
   const getPriorityColor = (priority: string) => {
     if (priority.includes('P0')) return 'red'
-    if (priority.includes('P1')) return 'orange'
-    if (priority.includes('P2')) return 'purple'
+    if (priority.includes('P1')) return 'blue'
+    if (priority.includes('P2')) return 'orange'
     return 'gray'
   }
 
   const priorityColor = getPriorityColor(task.priority)
-  const priorityShort = task.priority.split(' ')[0] || 'P3'
 
   return (
     <div
@@ -45,9 +45,7 @@ const TaskCard = ({ task, onDragStart, onClick }: TaskCardProps) => {
 
       {/* Tags */}
       <div className="flex flex-wrap gap-2 mb-3">
-        <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-${priorityColor}-100 text-${priorityColor}-700`}>
-          {priorityShort}
-        </span>
+        <PriorityBadge priority={task.priority} size="sm" />
         {task.task_type && task.task_type !== '未分类' && (
           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
             {task.task_type}

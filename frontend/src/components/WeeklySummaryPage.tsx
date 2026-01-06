@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
-import { WeeklySummary } from '../types'
-import { fetchWeeklySummary, pushWeeklySummary, fetchAvailableWeeks, fetchWeeklySummaryMarkdown } from '../api'
-import { Calendar, TrendingUp, Lightbulb, MessageSquare, Send, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
+import { fetchAvailableWeeks, fetchNewFormatSummary, fetchNewFormatMarkdown, pushWeeklySummary, saveNewFormatSummary, aiOptimizeSummary } from '../api'
+import { Calendar, Send, Copy, Check, Edit2 } from 'lucide-react'
+import NewFormatPreview from './NewFormatPreview'
+import WeeklySummaryEditor from './WeeklySummaryEditor'
 
 const WeeklySummaryPage = () => {
-  const [summary, setSummary] = useState<WeeklySummary | null>(null)
+  const [summary, setSummary] = useState<any>(null)
   const [selectedWeek, setSelectedWeek] = useState('current')
   const [loading, setLoading] = useState(true)
-  const [expandedTypes, setExpandedTypes] = useState<string[]>([])
   const [pushing, setPushing] = useState(false)
   const [availableWeeks, setAvailableWeeks] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState<'preview' | 'source'>('preview')
+  const [editMode, setEditMode] = useState(false)
   const [markdown, setMarkdown] = useState('')
   const [copied, setCopied] = useState(false)
   const [loadingMarkdown, setLoadingMarkdown] = useState(false)
@@ -21,8 +21,8 @@ const WeeklySummaryPage = () => {
 
   useEffect(() => {
     loadSummary()
-    setMarkdown('') // 清空 markdown 缓存
-    setViewMode('preview') // 重置为预览模式
+    setMarkdown('')
+    setEditMode(false)
   }, [selectedWeek])
 
   const loadAvailableWeeks = async () => {
@@ -37,7 +37,7 @@ const WeeklySummaryPage = () => {
   const loadSummary = async () => {
     setLoading(true)
     try {
-      const data = await fetchWeeklySummary(selectedWeek)
+      const data = await fetchNewFormatSummary(selectedWeek)
       setSummary(data)
     } catch (error) {
       console.error('Failed to load summary:', error)
@@ -49,91 +49,88 @@ const WeeklySummaryPage = () => {
 
   const handlePush = async () => {
     if (!summary) return
-    
+
     setPushing(true)
     try {
-      await pushWeeklySummary(selectedWeek, ['pushplus'])
-      alert('推送成功！')
-    } catch (error) {
+      const result = await pushWeeklySummary(selectedWeek, ['email'])
+      if (result.success) {
+        alert(`推送成功！\n${result.message}`)
+      } else {
+        alert(`推送失败：${result.message || '未知错误'}`)
+      }
+    } catch (error: any) {
       console.error('Push failed:', error)
-      alert('推送失败，请重试')
+      alert(`推送失败：${error.message || '请重试'}`)
     } finally {
       setPushing(false)
     }
   }
 
+  const handleSave = async (editedData: any) => {
+    try {
+      // 保存到后端
+      await saveNewFormatSummary(selectedWeek, editedData)
+      setSummary(editedData)
+      setEditMode(false)
+      alert('保存成功！')
+    } catch (error) {
+      console.error('Save failed:', error)
+      alert('保存失败，请重试')
+    }
+  }
+
+  const handleAIOptimize = async (section: string, data: any) => {
+    try {
+      // 准备上下文数据
+      const context = {
+        total_tasks: summary?.goals?.length || 0,
+        tasks_data: {
+          total: summary?.goals?.length || 0,
+          by_type: {}
+        },
+        habits_data: summary?.habits || {},
+        history_data: {}
+      }
+      
+      // 调用AI优化
+      const optimized = await aiOptimizeSummary(section, data, context)
+      return optimized
+    } catch (error) {
+      console.error('AI optimize failed:', error)
+      throw error
+    }
+  }
+
   const loadMarkdown = async () => {
-    if (!summary || markdown) return
+    if (markdown) return markdown
     
     setLoadingMarkdown(true)
     try {
-      const data = await fetchWeeklySummaryMarkdown(selectedWeek)
+      const data = await fetchNewFormatMarkdown(selectedWeek)
       setMarkdown(data.markdown)
+      return data.markdown
     } catch (error) {
       console.error('Failed to generate markdown:', error)
       alert('生成 Markdown 失败，请重试')
+      return ''
     } finally {
       setLoadingMarkdown(false)
     }
   }
 
-  const handleViewModeChange = async (mode: 'preview' | 'source') => {
-    setViewMode(mode)
-    if (mode === 'source' && !markdown) {
-      await loadMarkdown()
-    }
-  }
-
   const handleCopyMarkdown = async () => {
-    try {
-      await navigator.clipboard.writeText(markdown)
+    const md = markdown || await loadMarkdown()
+    if (md) {
+      navigator.clipboard.writeText(md)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
-      console.error('Failed to copy:', error)
-      alert('复制失败，请重试')
     }
   }
 
-  const toggleType = (type: string) => {
-    setExpandedTypes(prev =>
-      prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
-    )
-  }
-
-  const getTypeIcon = (type: string) => {
-    const icons: Record<string, string> = {
-      '家庭生活': '🏠',
-      '工作学习': '💼',
-      '理财投资': '💰',
-      '个人成长': '📚',
-      '健康运动': '💪',
-    }
-    return icons[type] || '📌'
-  }
-
-  const getTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      '家庭生活': '#4CAF50',
-      '工作学习': '#2196F3',
-      '理财投资': '#FF9800',
-      '个人成长': '#9C27B0',
-      '健康运动': '#F44336',
-    }
-    return colors[type] || '#757575'
-  }
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
     return `${date.getMonth() + 1}月${date.getDate()}日`
-  }
-
-  const getWeekdayName = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-    return days[date.getDay()]
   }
 
   if (loading) {
@@ -178,49 +175,20 @@ const WeeklySummaryPage = () => {
         </select>
       </div>
 
-      {/* 周期信息和模式切换 */}
+      {/* 周期信息 */}
       <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4">
         <div className="flex items-center justify-between">
           <p className="text-lg text-gray-700">
             📅 {summary.year}年第{summary.week_number}周 ({formatDate(summary.week_start)} - {formatDate(summary.week_end)})
           </p>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleViewModeChange('preview')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                viewMode === 'preview'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              👁️ 预览模式
-            </button>
-            <button
-              onClick={() => handleViewModeChange('source')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                viewMode === 'source'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              📝 源码模式
-            </button>
-            {viewMode === 'source' && (
+            {!editMode && (
               <button
-                onClick={handleCopyMarkdown}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                onClick={() => setEditMode(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    已复制
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    复制
-                  </>
-                )}
+                <Edit2 className="w-4 h-4" />
+                编辑
               </button>
             )}
           </div>
@@ -228,196 +196,51 @@ const WeeklySummaryPage = () => {
       </div>
 
       {/* 内容区域 */}
-      {viewMode === 'preview' ? (
-        <>
-      {/* 本周主题 */}
-      <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
-        <div className="flex items-start gap-3">
-          <TrendingUp className="w-6 h-6 text-purple-600 mt-1" />
-          <div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">
-              🎯 本周主题：{summary.theme.title}
-            </h2>
-            <p className="text-gray-700 leading-relaxed">
-              {summary.theme.description}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 本周完成概览 */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">
-          📊 本周完成概览 (共 {summary.completed.total} 件事)
-        </h2>
-
-        <div className="space-y-6">
-          {Object.entries(summary.completed.by_type).map(([type, data]) => (
-            <div key={type} className="border rounded-lg overflow-hidden">
-              {/* 类型头部 */}
-              <div
-                className="flex items-center justify-between p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => toggleType(type)}
-              >
-                <div className="flex items-center gap-3 flex-1">
-                  <span className="text-2xl">{getTypeIcon(type)}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-gray-800">{type}</h3>
-                      <span className="text-sm text-gray-500">
-                        ({data.count}件) - {data.percentage}%
-                      </span>
-                    </div>
-                    {/* 进度条 */}
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="h-2 rounded-full transition-all"
-                        style={{
-                          width: `${data.percentage}%`,
-                          backgroundColor: getTypeColor(type)
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                {expandedTypes.includes(type) ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                )}
-              </div>
-
-              {/* 展开内容 */}
-              {expandedTypes.includes(type) && (
-                <div className="p-4 bg-white border-t">
-                  <div className="mb-3">
-                    <p className="text-sm text-gray-500 mb-1">重点事项：</p>
-                    <p className="text-gray-700">{data.key_items.join('、')}</p>
-                  </div>
-                  <div className="mb-4">
-                    <p className="text-gray-700 leading-relaxed">{data.summary}</p>
-                  </div>
-
-                  {/* 任务列表 */}
-                  <div className="space-y-2">
-                    {data.tasks.map(task => (
-                      <div
-                        key={task.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded border-l-3"
-                        style={{ borderLeftColor: getTypeColor(type) }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>✅</span>
-                          <span className="font-medium text-gray-800">{task.name}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-gray-500">
-                          <span>{task.priority}</span>
-                          <span>
-                            {task.completed_time && formatDate(task.completed_time)} {task.completed_time && getWeekdayName(task.completed_time)}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 值得记录的时刻 */}
-      {summary.highlights.length > 0 && (
-        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
-          <div className="flex items-start gap-3">
-            <Lightbulb className="w-6 h-6 text-yellow-600 mt-1" />
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">💡 值得记录的时刻</h2>
-              <div className="space-y-4">
-                {summary.highlights.map((highlight, index) => (
-                  <div key={index}>
-                    <h3 className="font-semibold text-gray-800 mb-1">
-                      🌟 {highlight.title}
-                    </h3>
-                    <p className="text-gray-700 leading-relaxed pl-6">
-                      {highlight.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 一些思考 */}
-      {(summary.reflections.suggestions.length > 0 || summary.reflections.concerns.length > 0) && (
-        <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
-          <div className="flex items-start gap-3">
-            <MessageSquare className="w-6 h-6 text-blue-600 mt-1" />
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">🤔 一些思考</h2>
-
-              {summary.reflections.suggestions.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-800 mb-2">💭 下周可以考虑：</h3>
-                  <ul className="space-y-2 pl-6">
-                    {summary.reflections.suggestions.map((suggestion, index) => (
-                      <li key={index} className="text-gray-700 list-disc">
-                        {suggestion}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {summary.reflections.concerns.length > 0 && (
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">📌 需要关注：</h3>
-                  <ul className="space-y-2 pl-6">
-                    {summary.reflections.concerns.map((concern, index) => (
-                      <li key={index} className="text-gray-700 list-disc">
-                        {concern}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 操作按钮 */}
-      <div className="flex gap-4">
-        <button
-          onClick={handlePush}
-          disabled={pushing}
-          className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-          <Send className="w-5 h-5" />
-          {pushing ? '推送中...' : '📤 推送周记'}
-        </button>
-      </div>
-      </>
+      {editMode ? (
+        <WeeklySummaryEditor
+          summary={summary}
+          onSave={handleSave}
+          onCancel={() => setEditMode(false)}
+          onAIOptimize={handleAIOptimize}
+        />
       ) : (
         <>
-      {/* Markdown 源码视图 */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        {loadingMarkdown ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">生成 Markdown 中...</p>
-            </div>
+          <NewFormatPreview summary={summary} />
+
+          {/* 操作按钮 */}
+          <div className="flex gap-4">
+            <button
+              onClick={handlePush}
+              disabled={pushing}
+              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <Send className="w-5 h-5" />
+              {pushing ? '推送中...' : '📧 邮箱推送'}
+            </button>
+            <button
+              onClick={handleCopyMarkdown}
+              disabled={loadingMarkdown}
+              className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {loadingMarkdown ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  生成中...
+                </>
+              ) : copied ? (
+                <>
+                  <Check className="w-5 h-5" />
+                  已复制
+                </>
+              ) : (
+                <>
+                  <Copy className="w-5 h-5" />
+                  📋 复制Markdown
+                </>
+              )}
+            </button>
           </div>
-        ) : (
-          <pre className="bg-gray-50 p-6 rounded-lg text-sm font-mono whitespace-pre-wrap break-words overflow-auto max-h-[70vh] border border-gray-200">
-            {markdown}
-          </pre>
-        )}
-      </div>
-      </>
+        </>
       )}
     </div>
   )

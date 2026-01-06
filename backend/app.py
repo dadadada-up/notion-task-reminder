@@ -26,6 +26,7 @@ from services.schedule_service import ScheduleService
 from services.config_service import ConfigService
 from services.github_service import GitHubService
 from services.weekly_summary_service import WeeklySummaryService
+from services.habit_service import HabitService
 
 app = Flask(__name__, static_folder='../frontend/dist')
 CORS(app)
@@ -37,7 +38,20 @@ email_service = EmailService()
 schedule_service = ScheduleService()
 config_service = ConfigService()
 github_service = GitHubService()
-weekly_summary_service = WeeklySummaryService(notion_service)
+habit_service = HabitService()
+weekly_summary_service = WeeklySummaryService(notion_service, habit_service)
+
+# 初始化DeepSeek服务（可选）
+deepseek_service = None
+deepseek_api_key = os.environ.get('DEEPSEEK_API_KEY', '')
+deepseek_enabled = os.environ.get('DEEPSEEK_ENABLED', 'false').lower() == 'true'
+if deepseek_enabled and deepseek_api_key:
+    try:
+        from services.deepseek_service import DeepSeekService
+        deepseek_service = DeepSeekService(deepseek_api_key)
+        print("✅ DeepSeek AI服务已启用")
+    except Exception as e:
+        print(f"⚠️  DeepSeek AI服务初始化失败: {e}")
 
 # ==================== API Routes ====================
 
@@ -231,13 +245,288 @@ def upload_image():
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
-    """获取任务统计数据"""
+    """获取综合统计数据（任务+习惯）"""
     try:
+        # 获取任务统计
+        task_stats = notion_service.get_statistics()
+        
+        # 获取习惯统计
+        try:
+            habit_stats = habit_service.get_statistics()
+        except Exception as e:
+            print(f"⚠️  获取习惯统计失败: {e}")
+            habit_stats = {
+                'today': {'total': 0, 'completed': 0, 'remaining': 0, 'completion_rate': 0},
+                'week': {'completed': 0, 'target': 0, 'remaining': 0, 'completion_rate': 0, 'longest_streak': 0},
+                'month': {'completed': 0, 'target': 0, 'completion_rate': 0},
+                'habits': []
+            }
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tasks': task_stats,
+                'habits': habit_stats
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/data', methods=['GET'])
+def get_combined_data():
+    """获取任务和统计数据的合并API"""
+    try:
+        # 一次性获取所有数据，避免重复查询
+        tasks = notion_service.get_tasks_with_cache()
+        
+        # 计算统计数据
         stats = notion_service.get_statistics()
         
         return jsonify({
             'success': True,
+            'data': {
+                'tasks': tasks,
+                'stats': stats
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ==================== Habit Routes ====================
+
+@app.route('/api/habits', methods=['GET', 'POST'])
+def manage_habits():
+    """
+    获取或创建习惯
+    GET: 获取习惯列表
+    POST: 创建新习惯
+    """
+    try:
+        if request.method == 'GET':
+            status = request.args.get('status')
+            habits = habit_service.get_habits(status=status)
+            
+            return jsonify({
+                'success': True,
+                'data': habits,
+                'count': len(habits)
+            })
+        else:
+            data = request.get_json()
+            
+            if not data.get('name'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Habit name is required'
+                }), 400
+            
+            habit = habit_service.create_habit(data)
+            
+            return jsonify({
+                'success': True,
+                'data': habit
+            }), 201
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/habits/<habit_id>', methods=['GET', 'PUT'])
+def manage_habit(habit_id):
+    """
+    获取或更新单个习惯
+    GET: 获取习惯详情
+    PUT: 更新习惯
+    """
+    try:
+        if request.method == 'GET':
+            habit = habit_service.get_habit_by_id(habit_id)
+            
+            if not habit:
+                return jsonify({
+                    'success': False,
+                    'error': 'Habit not found'
+                }), 404
+            
+            return jsonify({
+                'success': True,
+                'data': habit
+            })
+        else:
+            data = request.get_json()
+            habit = habit_service.update_habit(habit_id, data)
+            
+            return jsonify({
+                'success': True,
+                'data': habit
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/habits/stats', methods=['GET'])
+def get_habit_stats():
+    """获取习惯统计数据"""
+    try:
+        stats = habit_service.get_statistics()
+        
+        return jsonify({
+            'success': True,
             'data': stats
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/daily-logs', methods=['GET', 'POST'])
+def manage_daily_logs():
+    """
+    获取或创建打卡记录
+    GET: 获取打卡记录列表
+    POST: 创建打卡记录
+    """
+    try:
+        if request.method == 'GET':
+            habit_id = request.args.get('habit_id')
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            completed = request.args.get('completed')
+            
+            if completed is not None:
+                completed = completed.lower() == 'true'
+            
+            logs = habit_service.get_daily_logs(
+                habit_id=habit_id,
+                start_date=start_date,
+                end_date=end_date,
+                completed=completed
+            )
+            
+            return jsonify({
+                'success': True,
+                'data': logs,
+                'count': len(logs)
+            })
+        else:
+            data = request.get_json()
+            
+            if not data.get('habit_id'):
+                return jsonify({
+                    'success': False,
+                    'error': 'habit_id is required'
+                }), 400
+            
+            log = habit_service.create_daily_log(data)
+            
+            return jsonify({
+                'success': True,
+                'data': log
+            }), 201
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/daily-logs/<log_id>', methods=['PUT'])
+def update_daily_log(log_id):
+    """更新打卡记录"""
+    try:
+        data = request.get_json()
+        log = habit_service.update_daily_log(log_id, data)
+        
+        return jsonify({
+            'success': True,
+            'data': log
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/daily-logs/calendar', methods=['GET'])
+def get_calendar_data():
+    """获取日历视图数据"""
+    try:
+        year = request.args.get('year')
+        month = request.args.get('month')
+        
+        if not year or not month:
+            from datetime import datetime
+            now = datetime.now()
+            year = now.year
+            month = now.month
+        else:
+            year = int(year)
+            month = int(month)
+        
+        # 计算月份的第一天和最后一天
+        from calendar import monthrange
+        _, last_day = monthrange(year, month)
+        
+        start_date = f"{year}-{month:02d}-01"
+        end_date = f"{year}-{month:02d}-{last_day:02d}"
+        
+        # 获取该月的所有打卡记录
+        logs = habit_service.get_daily_logs(start_date=start_date, end_date=end_date)
+        
+        # 按日期分组
+        calendar_data = {}
+        for log in logs:
+            date = log.get('date')
+            if date:
+                if date not in calendar_data:
+                    calendar_data[date] = {
+                        'date': date,
+                        'logs': [],
+                        'completed_count': 0,
+                        'total_count': 0
+                    }
+                calendar_data[date]['logs'].append(log)
+                calendar_data[date]['total_count'] += 1
+                if log.get('completed'):
+                    calendar_data[date]['completed_count'] += 1
+        
+        return jsonify({
+            'success': True,
+            'data': list(calendar_data.values())
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/tasks/auto-transition', methods=['POST'])
+def auto_transition_tasks():
+    """
+    自动流转任务状态
+    将收集箱中已到开始时间的任务自动转为进行中
+    """
+    try:
+        result = notion_service.auto_transition_tasks()
+        
+        return jsonify({
+            'success': result['success'],
+            'data': {
+                'total_checked': result['total_checked'],
+                'transitioned': result['transitioned'],
+                'tasks': result['tasks'],
+                'timestamp': result.get('timestamp', '')
+            },
+            'message': f"检查了 {result['total_checked']} 个任务，流转了 {result['transitioned']} 个任务"
         })
     except Exception as e:
         return jsonify({
@@ -498,18 +787,212 @@ def push_weekly_summary():
     try:
         data = request.get_json()
         week = data.get('week', 'current')
-        channels = data.get('channels', ['pushplus'])
+        channels = data.get('channels', ['email'])
         
-        # 获取总结
-        summary = weekly_summary_service.get_weekly_summary(week)
+        # 获取新格式的周总结
+        summary = weekly_summary_service.get_new_format_summary(week)
+        markdown = weekly_summary_service.generate_new_markdown(summary)
         
-        # 生成HTML（后续实现）
-        # html = weekly_summary_service.generate_summary_html(summary)
+        # 格式化日期
+        from datetime import datetime
+        week_start_date = datetime.strptime(summary['week_start'], '%Y-%m-%d')
+        week_end_date = datetime.strptime(summary['week_end'], '%Y-%m-%d')
+        week_start_formatted = f"{week_start_date.month}月{week_start_date.day}日"
+        week_end_formatted = f"{week_end_date.month}月{week_end_date.day}日"
         
-        # 暂时返回成功
+        results = []
+        
+        # 邮箱推送
+        if 'email' in channels:
+            if email_service and email_service.enabled:
+                result = email_service.send_weekly_summary(
+                    markdown=markdown,
+                    year=summary['year'],
+                    week_number=summary['week_number'],
+                    week_start=week_start_formatted,
+                    week_end=week_end_formatted
+                )
+                results.append({
+                    'channel': 'email',
+                    'success': result['success'],
+                    'message': result.get('message', result.get('error', ''))
+                })
+            else:
+                results.append({
+                    'channel': 'email',
+                    'success': False,
+                    'message': 'Email service not enabled'
+                })
+        
+        # PushPlus推送（保留原有功能）
+        if 'pushplus' in channels:
+            results.append({
+                'channel': 'pushplus',
+                'success': False,
+                'message': 'PushPlus功能待实现'
+            })
+        
+        # 检查是否有成功的推送
+        success_count = sum(1 for r in results if r['success'])
+        
+        return jsonify({
+            'success': success_count > 0,
+            'message': f'成功推送到 {success_count}/{len(results)} 个渠道',
+            'results': results
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ==================== New Format Weekly Summary Routes ====================
+
+@app.route('/api/weekly-summary/new-format', methods=['GET'])
+def get_new_format_summary():
+    """
+    获取新格式的周复盘数据
+    Query Parameters:
+    - week: 'current', 'last', 或具体日期 'YYYY-MM-DD'
+    """
+    try:
+        week = request.args.get('week', 'current')
+        summary = weekly_summary_service.get_new_format_summary(week)
+        
         return jsonify({
             'success': True,
-            'message': '推送功能开发中'
+            'data': summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/weekly-summary/new-format/markdown', methods=['GET'])
+def get_new_format_markdown():
+    """
+    获取新格式的 Markdown 周复盘
+    Query Parameters:
+    - week: 'current', 'last', 或具体日期 'YYYY-MM-DD'
+    """
+    try:
+        week = request.args.get('week', 'current')
+        summary = weekly_summary_service.get_new_format_summary(week)
+        markdown = weekly_summary_service.generate_new_markdown(summary)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'markdown': markdown,
+                'summary': summary
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/weekly-summary/new-format/save', methods=['POST'])
+def save_new_format_summary():
+    """
+    保存编辑后的周复盘数据
+    Request Body:
+    {
+        "week": "current",
+        "data": { ... }
+    }
+    """
+    try:
+        body = request.get_json()
+        week = body.get('week', 'current')
+        data = body.get('data')
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '缺少数据'
+            }), 400
+        
+        # 保存数据
+        if weekly_summary_service.storage:
+            success = weekly_summary_service.storage.save_weekly_data(week, data)
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': '保存成功'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '保存失败'
+                }), 500
+        else:
+            return jsonify({
+                'success': False,
+                'error': '存储服务未初始化'
+            }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/weekly-summary/ai-optimize', methods=['POST'])
+def ai_optimize_summary():
+    """
+    AI优化周总结内容
+    Request Body:
+    {
+        "section": "kiss" | "summary" | "next_week_plan",
+        "data": { ... },
+        "context": { ... }
+    }
+    """
+    try:
+        if not deepseek_service:
+            return jsonify({
+                'success': False,
+                'error': 'AI服务未启用'
+            }), 400
+        
+        body = request.get_json()
+        section = body.get('section')
+        data = body.get('data')
+        context = body.get('context', {})
+        
+        if not section or not data:
+            return jsonify({
+                'success': False,
+                'error': '缺少必要参数'
+            }), 400
+        
+        # 根据不同section调用不同的优化方法
+        if section == 'kiss':
+            # 准备任务摘要
+            tasks_summary = f"完成{context.get('total_tasks', 0)}项任务"
+            optimized = deepseek_service.optimize_kiss_reflection(tasks_summary, data)
+        elif section == 'summary':
+            optimized = deepseek_service.generate_weekly_summary(
+                context.get('tasks_data', {}),
+                context.get('habits_data', {}),
+                data
+            )
+        elif section == 'next_week_plan':
+            optimized = deepseek_service.suggest_next_week_plan(
+                context.get('history_data', {}),
+                data
+            )
+        else:
+            return jsonify({
+                'success': False,
+                'error': '不支持的section类型'
+            }), 400
+        
+        return jsonify({
+            'success': True,
+            'data': optimized
         })
     except Exception as e:
         return jsonify({

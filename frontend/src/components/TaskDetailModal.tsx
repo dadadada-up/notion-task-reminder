@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Calendar, User, Flag, Tag, Clock, CheckCircle2, Link as LinkIcon, Edit, Mail, Hash, Plus } from 'lucide-react'
+import { X, Calendar, User, Flag, Tag, Clock, CheckCircle2, Link as LinkIcon, Edit, Mail, Hash, Plus, FileText } from 'lucide-react'
 import { Task } from '../types'
 import { fetchTasks, updateTask } from '../api'
 import { formatDate, formatDateTime } from '../utils/dateFormat'
@@ -361,15 +361,30 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
 
             {/* Notion链接 */}
             <div className="pt-4 border-t border-gray-200">
-              <a
-                href={task.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <LinkIcon className="w-4 h-4" />
-                在 Notion 中打开
-              </a>
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={task.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  title="在 Notion 中打开页面，编辑长文档内容"
+                >
+                  <FileText className="w-4 h-4" />
+                  打开页面编辑文档
+                </a>
+                <a
+                  href={task.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  在 Notion 中查看
+                </a>
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                💡 Notion 页面支持富文本编辑、代码块、表格、嵌入内容等，适合记录详细的任务文档和笔记
+              </p>
             </div>
           </div>
         </div>
