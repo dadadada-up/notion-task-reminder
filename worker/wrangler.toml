@@ -1,0 +1,29 @@
+name = "personal-workbench"
+main = "src/index.ts"
+compatibility_date = "2025-07-18"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "workbench-db"
+database_id = "d640406e-02c9-4dca-8873-4790f2198865"
+
+# R2 Bucket (for image uploads) - enable after activating R2 in Dashboard
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "workbench-uploads"
+
+# Non-sensitive environment variables
+[vars]
+APP_NAME = "Personal Workbench"
+ALLOWED_ORIGIN = "*"
+
+# Cron Triggers (UTC times, +8h for Beijing time)
+# 08:00 Beijing = 00:00 UTC, 09:00 Beijing = 01:00 UTC, 22:00 Beijing = 14:00 UTC
+[triggers]
+crons = [
+  "0 0 * * *",
+  "0 1 * * *",
+  "0 14 * * *"
+]

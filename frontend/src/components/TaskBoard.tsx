@@ -1,102 +1,25 @@
-import { useState } from 'react'
 import { Task } from '../types'
-import TaskCard from './TaskCard'
-import { Inbox, CheckCircle2 } from 'lucide-react'
+import TaskKanban from './tasks/TaskKanban'
 
 interface TaskBoardProps {
   tasks: Task[]
-  onTasksChange: (tasks: Task[]) => void
-  onTaskClick?: (task: Task) => void
+  onTaskClick: (task: Task) => void
+  onTaskUpdate?: (taskId: string, updates: Partial<Task>) => void
 }
 
-const TaskBoard = ({ tasks, onTasksChange, onTaskClick }: TaskBoardProps) => {
-  const [draggedTask, setDraggedTask] = useState<Task | null>(null)
-
-  const columns = [
-    { id: '收集箱', title: '📥 收集箱', icon: Inbox, color: 'yellow' },
-    { id: '进行中', title: '🔵 进行中', icon: CheckCircle2, color: 'blue' },
-    { id: '已完成', title: '✅ 已完成', icon: CheckCircle2, color: 'green' },
-  ]
-
-  const getTasksByStatus = (status: string) => {
-    return tasks.filter((task) => task.status === status)
-  }
-
-  const handleDragStart = (task: Task) => {
-    setDraggedTask(task)
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-  }
-
-  const handleDrop = async (status: string) => {
-    if (!draggedTask) return
-
-    // 更新任务状态
-    const updatedTasks = tasks.map((task) =>
-      task.id === draggedTask.id ? { ...task, status: status as Task['status'] } : task
-    )
-    onTasksChange(updatedTasks)
-    setDraggedTask(null)
-
-    // 调用 API 更新
-    try {
-      const { updateTask } = await import('../api')
-      await updateTask(draggedTask.id, { status: status as Task['status'] })
-    } catch (error) {
-      console.error('Failed to update task:', error)
-      // 回滚
-      onTasksChange(tasks)
-    }
-  }
-
+/**
+ * /tasks 全量看板视图：复用与 dashboard 相同的 TaskKanban 组件，
+ * 仅数据范围不同（这里是全部主任务，dashboard 是今日子集）。
+ */
+const TaskBoard = ({ tasks, onTaskClick, onTaskUpdate }: TaskBoardProps) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {columns.map((column) => {
-        const columnTasks = getTasksByStatus(column.id)
-        const Icon = column.icon
-
-        return (
-          <div
-            key={column.id}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
-            onDragOver={handleDragOver}
-            onDrop={() => handleDrop(column.id)}
-          >
-            {/* Column Header */}
-            <div className={`bg-${column.color}-50 border-b border-${column.color}-100 px-4 py-3`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Icon className={`w-5 h-5 text-${column.color}-600`} />
-                  <h3 className="font-semibold text-gray-900">{column.title}</h3>
-                </div>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full bg-${column.color}-100 text-${column.color}-700`}>
-                  {columnTasks.length}
-                </span>
-              </div>
-            </div>
-
-            {/* Tasks */}
-            <div className="p-4 space-y-3 min-h-[400px] max-h-[600px] overflow-y-auto">
-              {columnTasks.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <p className="text-sm">暂无任务</p>
-                </div>
-              ) : (
-                columnTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onDragStart={() => handleDragStart(task)}
-                    onClick={() => onTaskClick?.(task)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        )
-      })}
+    <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <TaskKanban
+        tasks={tasks}
+        onTaskClick={onTaskClick}
+        onTaskUpdate={onTaskUpdate}
+        doneMaxHeight={560}
+      />
     </div>
   )
 }

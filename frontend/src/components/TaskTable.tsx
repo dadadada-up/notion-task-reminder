@@ -1,19 +1,20 @@
 import { Task } from '../types'
-import { ExternalLink } from 'lucide-react'
-import { formatDate as formatDateUtil } from '../utils/dateFormat'
+import { ExternalLink, Copy } from 'lucide-react'
+import { formatDate as formatDateUtil, formatDateTime } from '../utils/dateFormat'
 import PriorityBadge from './PriorityBadge'
 
 interface TaskTableProps {
   tasks: Task[]
   onTaskClick?: (task: Task) => void
+  onCopy?: (task: Task) => void
 }
 
-const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
+const TaskTable = ({ tasks, onTaskClick, onCopy }: TaskTableProps) => {
   // 状态优先级排序
   const statusOrder: Record<string, number> = {
-    '收集箱': 0,
+    '待开始': 0,
     '进行中': 1,
-    '暂停': 2,
+    '已逾期': 2,
     '已完成': 3,
     '已放弃': 4,
   }
@@ -68,11 +69,11 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; color: string }> = {
-      '收集箱': { label: '📥 收集箱', color: 'bg-yellow-100 text-yellow-700' },
-      '进行中': { label: '🔵 进行中', color: 'bg-blue-100 text-blue-700' },
-      '暂停': { label: '⏸️ 暂停', color: 'bg-gray-100 text-gray-700' },
-      '已完成': { label: '✅ 已完成', color: 'bg-green-100 text-green-700' },
-      '已放弃': { label: '❌ 已放弃', color: 'bg-red-100 text-red-700' },
+      '待开始': { label: '待开始', color: 'bg-yellow-100 text-yellow-700' },
+      '进行中': { label: '进行中', color: 'bg-blue-100 text-blue-700' },
+      '已逾期': { label: '已逾期', color: 'bg-orange-100 text-orange-700' },
+      '已完成': { label: '已完成', color: 'bg-green-100 text-green-700' },
+      '已放弃': { label: '已放弃', color: 'bg-red-100 text-red-700' },
     }
     const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-700' }
     return (
@@ -88,23 +89,10 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
     return formatDateUtil(dateString)
   }
 
-  // 格式化完成时间 - 直接显示数据库的值，不做时区转换
+  // 格式化完成时间 - 数据库存 UTC（带 Z 后缀），统一走公共工具转换为北京时间显示
   const formatCompletedTime = (dateString: string | undefined) => {
     if (!dateString) return '-'
-    try {
-      const date = new Date(dateString)
-      if (isNaN(date.getTime())) return dateString
-      
-      const year = date.getUTCFullYear()
-      const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(date.getUTCDate()).padStart(2, '0')
-      const hours = String(date.getUTCHours()).padStart(2, '0')
-      const minutes = String(date.getUTCMinutes()).padStart(2, '0')
-      
-      return `${year}年${month}月${day}日 ${hours}:${minutes}`
-    } catch (error) {
-      return dateString
-    }
+    return formatDateTime(dateString) || dateString
   }
 
   return (
@@ -211,15 +199,26 @@ const TaskTable = ({ tasks, onTaskClick }: TaskTableProps) => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <a
-                      href={task.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-purple-600 hover:text-purple-900 inline-flex items-center"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
+                    <div className="flex items-center gap-3">
+                      {onCopy && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onCopy(task) }}
+                          title="复制为新任务"
+                          className="text-gray-400 hover:text-purple-600 inline-flex items-center transition-colors"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      )}
+                      <a
+                        href={task.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-purple-600 hover:text-purple-900 inline-flex items-center"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))

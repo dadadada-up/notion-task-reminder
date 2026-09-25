@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react'
-import { fetchAvailableWeeks, fetchNewFormatSummary, fetchNewFormatMarkdown, pushWeeklySummary, saveNewFormatSummary, aiOptimizeSummary } from '../api'
-import { Calendar, Send, Copy, Check, Edit2 } from 'lucide-react'
+import { fetchAvailableWeeks, fetchNewFormatSummary, pushWeeklySummary, saveNewFormatSummary, aiOptimizeSummary, createShareLink } from '../api'
+import { Calendar, Send, Check, Edit2, Share2 } from 'lucide-react'
 import NewFormatPreview from './NewFormatPreview'
 import WeeklySummaryEditor from './WeeklySummaryEditor'
+import { useToast } from './ui/Toast'
 
 const WeeklySummaryPage = () => {
+  const toast = useToast()
   const [summary, setSummary] = useState<any>(null)
   const [selectedWeek, setSelectedWeek] = useState('current')
   const [loading, setLoading] = useState(true)
   const [pushing, setPushing] = useState(false)
   const [availableWeeks, setAvailableWeeks] = useState<any[]>([])
   const [editMode, setEditMode] = useState(false)
-  const [markdown, setMarkdown] = useState('')
   const [copied, setCopied] = useState(false)
-  const [loadingMarkdown, setLoadingMarkdown] = useState(false)
+  const [sharing, setSharing] = useState(false)
 
   useEffect(() => {
     loadAvailableWeeks()
@@ -21,7 +22,6 @@ const WeeklySummaryPage = () => {
 
   useEffect(() => {
     loadSummary()
-    setMarkdown('')
     setEditMode(false)
   }, [selectedWeek])
 
@@ -41,7 +41,7 @@ const WeeklySummaryPage = () => {
       setSummary(data)
     } catch (error) {
       console.error('Failed to load summary:', error)
-      alert('加载失败，请重试')
+      toast.error('加载失败', '请重试')
     } finally {
       setLoading(false)
     }
@@ -52,17 +52,36 @@ const WeeklySummaryPage = () => {
 
     setPushing(true)
     try {
-      const result = await pushWeeklySummary(selectedWeek, ['email'])
+      // 默认使用钉钉机器人推送
+      const result = await pushWeeklySummary(selectedWeek, ['dingtalk'])
       if (result.success) {
-        alert(`推送成功！\n${result.message}`)
+        toast.success('推送成功', '已通过钉钉机器人发送')
       } else {
-        alert(`推送失败：${result.message || '未知错误'}`)
+        toast.error('推送失败', result.message || '未知错误')
       }
     } catch (error: any) {
       console.error('Push failed:', error)
-      alert(`推送失败：${error.message || '请重试'}`)
+      toast.error('推送失败', error.message || '请重试')
     } finally {
       setPushing(false)
+    }
+  }
+
+  const handleShare = async () => {
+    setSharing(true)
+    try {
+      const title = `${summary.year}年第${summary.week_number}周总结`
+      // 用 week_start 作为 resourceId，后端按此查找周报数据
+      const result = await createShareLink('weekly_summary', summary.week_start, title)
+      const shareUrl = `${window.location.origin}/share/${result.token}`
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error: any) {
+      console.error('Share failed:', error)
+      toast.error('生成分享链接失败', error.message || '请重试')
+    } finally {
+      setSharing(false)
     }
   }
 
@@ -72,10 +91,10 @@ const WeeklySummaryPage = () => {
       await saveNewFormatSummary(selectedWeek, editedData)
       setSummary(editedData)
       setEditMode(false)
-      alert('保存成功！')
+      toast.success('保存成功')
     } catch (error) {
       console.error('Save failed:', error)
-      alert('保存失败，请重试')
+      toast.error('保存失败', '请重试')
     }
   }
 
@@ -101,31 +120,6 @@ const WeeklySummaryPage = () => {
     }
   }
 
-  const loadMarkdown = async () => {
-    if (markdown) return markdown
-    
-    setLoadingMarkdown(true)
-    try {
-      const data = await fetchNewFormatMarkdown(selectedWeek)
-      setMarkdown(data.markdown)
-      return data.markdown
-    } catch (error) {
-      console.error('Failed to generate markdown:', error)
-      alert('生成 Markdown 失败，请重试')
-      return ''
-    } finally {
-      setLoadingMarkdown(false)
-    }
-  }
-
-  const handleCopyMarkdown = async () => {
-    const md = markdown || await loadMarkdown()
-    if (md) {
-      navigator.clipboard.writeText(md)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
 
 
   const formatDate = (dateStr: string) => {
@@ -158,7 +152,7 @@ const WeeklySummaryPage = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Calendar className="w-8 h-8 text-purple-600" />
-          <h1 className="text-3xl font-bold text-gray-800">📖 我的一周</h1>
+          <h1 className="text-3xl font-bold text-gray-800">我的一周</h1>
         </div>
         <select
           value={selectedWeek}
@@ -178,8 +172,9 @@ const WeeklySummaryPage = () => {
       {/* 周期信息 */}
       <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4">
         <div className="flex items-center justify-between">
-          <p className="text-lg text-gray-700">
-            📅 {summary.year}年第{summary.week_number}周 ({formatDate(summary.week_start)} - {formatDate(summary.week_end)})
+          <p className="text-lg text-gray-700 flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            {summary.year}年第{summary.week_number}周 ({formatDate(summary.week_start)} - {formatDate(summary.week_end)})
           </p>
           <div className="flex items-center gap-2">
             {!editMode && (
@@ -215,14 +210,14 @@ const WeeklySummaryPage = () => {
               className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               <Send className="w-5 h-5" />
-              {pushing ? '推送中...' : '📧 邮箱推送'}
+              {pushing ? '推送中...' : '推送'}
             </button>
             <button
-              onClick={handleCopyMarkdown}
-              disabled={loadingMarkdown}
+              onClick={handleShare}
+              disabled={sharing}
               className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {loadingMarkdown ? (
+              {sharing ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   生成中...
@@ -234,8 +229,8 @@ const WeeklySummaryPage = () => {
                 </>
               ) : (
                 <>
-                  <Copy className="w-5 h-5" />
-                  📋 复制Markdown
+                  <Share2 className="w-5 h-5" />
+                  分享
                 </>
               )}
             </button>

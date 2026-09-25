@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>子任务 · 统计与展示方案设计</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f3f4f6; }
+  .hero { background: linear-gradient(135deg,#4f46e5 0%,#4f46e5 55%,#7c3aed 100%); }
+  .kpi-num { font-variant-numeric: tabular-nums; }
+  .child-row { transition: all .2s; }
+  .collapsed .child-wrap { display: none; }
+  .chev { transition: transform .2s; }
+  .collapsed .chev { transform: rotate(0deg); }
+  .expanded .chev { transform: rotate(90deg); }
+</style>
+</head>
+<body class="py-10">
+<div class="max-w-5xl mx-auto px-6">
+
+  <h1 class="text-2xl font-bold text-gray-900 mb-1">子任务：统计口径 &amp; 页面展示方案</h1>
+  <p class="text-sm text-gray-500 mb-2">示例数据：<b>明亚兼职情况说明</b>（父 · P0 · 进行中 · 截止 9/25）→ 子①「明亚兼职信息提供」已完成 · 子②「明亚账号注销」进行中(9/27)</p>
+  <p class="text-xs text-gray-400 mb-8">现状：子任务被完全过滤，不显示也不计数，父任务只算"进行中 1 个"，做了一半的进度看不见。下面三个方案给出不同解法。</p>
+
+  <!-- ================= 方案 1 ================= -->
+  <div class="mb-14">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="text-xs font-bold text-white bg-indigo-600 rounded px-2 py-0.5">方案 1</span>
+      <h2 class="text-lg font-semibold text-gray-800">父任务聚合 + 行内展开（推荐）</h2>
+      <span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5">★ 建议采用</span>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">统计<b>只数父任务</b>（口径不变、KPI 不膨胀）；父行右侧挂一个 <b>子任务进度点 ●●○○</b> 或 <b>1/2 分数</b>；点父行就地展开看子任务、各自可勾选。父任务完成度用"子任务是否全完成"驱动（已有拦截规则）。</p>
+
+    <div class="hero rounded-2xl p-5 text-white shadow-lg mb-3">
+      <div class="flex items-center gap-8">
+        <div><div class="kpi-num text-3xl font-extrabold">6</div><div class="text-[11px] text-white/70 mt-1">进行中（父）</div></div>
+        <div><div class="kpi-num text-3xl font-extrabold text-amber-300">1</div><div class="text-[11px] text-white/70 mt-1">已逾期</div></div>
+        <div><div class="kpi-num text-3xl font-extrabold text-emerald-200">1</div><div class="text-[11px] text-white/70 mt-1">本周完成</div></div>
+        <div class="ml-auto text-right"><div class="text-sm font-semibold">今日进度 1 / 6</div><div class="text-[11px] text-white/60">按父任务计 · 子任务不单独计</div></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-5 py-3 text-sm font-semibold text-gray-900 border-b border-gray-100">今日待办</div>
+      <div class="divide-y divide-gray-100">
+        <!-- 父任务：可展开 -->
+        <div class="expanded" id="p1-parent">
+          <div class="flex items-stretch gap-3 px-5 py-3 cursor-pointer hover:bg-indigo-50/40" onclick="toggleP1()">
+            <div class="w-14 flex-shrink-0 flex flex-col items-start justify-center"><span class="text-[13px] font-bold text-indigo-600">今天</span><span class="text-[11px] text-indigo-400">9/25</span></div>
+            <div class="w-[3px] self-stretch rounded-full my-0.5 bg-indigo-500"></div>
+            <div class="flex-1 min-w-0 py-0.5">
+              <div class="flex items-center gap-2">
+                <svg class="chev w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M6 6l6 4-6 4V6z"/></svg>
+                <span class="text-[13.5px] font-semibold text-gray-900">明亚兼职情况说明</span>
+                <span class="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">P0</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-[11px] text-gray-400">工作</span>
+                <span class="inline-flex items-center gap-1 text-[10.5px] font-medium text-indigo-600 bg-indigo-50 rounded px-1.5 py-0.5">
+                  子任务 <span class="inline-flex gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span></span>
+                  1/2
+                </span>
+              </div>
+            </div>
+            <div class="self-center w-5 h-5 rounded-md border-2 border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300 flex-shrink-0" title="有未完成子任务，暂不可完成">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            </div>
+          </div>
+          <!-- 展开的子任务 -->
+          <div class="child-wrap bg-gray-50/60 pb-2">
+            <div class="child-row flex items-center gap-2.5 pl-[92px] pr-5 py-1.5">
+              <button class="w-4 h-4 rounded border-2 border-emerald-500 bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg></button>
+              <span class="flex-1 text-[12.5px] text-gray-400 line-through">明亚兼职信息提供</span>
+              <span class="text-[10.5px] text-gray-400">9/25</span>
+            </div>
+            <div class="child-row flex items-center gap-2.5 pl-[92px] pr-5 py-1.5">
+              <button class="w-4 h-4 rounded border-2 border-gray-300 bg-white hover:border-emerald-500 flex-shrink-0"></button>
+              <span class="flex-1 text-[12.5px] text-gray-700">明亚账号注销</span>
+              <span class="text-[10.5px] text-gray-400">9/27</span>
+            </div>
+          </div>
+        </div>
+        <!-- 普通任务 -->
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-gray-50">
+          <div class="w-14 flex-shrink-0 flex flex-col items-start justify-center"><span class="text-[13px] font-bold text-red-600">逾期</span><span class="text-[11px] text-red-400">7 天</span></div>
+          <div class="w-[3px] self-stretch rounded-full my-0.5 bg-red-400"></div>
+          <div class="flex-1 min-w-0 py-0.5"><div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900">研究一下服务器的问题</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">P1</span></div><div class="text-[11px] text-gray-400 mt-0.5">个人成长</div></div>
+          <div class="self-center w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></div>
+        </div>
+      </div>
+    </div>
+    <p class="text-[11px] text-gray-400 mt-2">👆 点父任务行可展开/收起子任务。父行 ✓ 变灰带感叹号 = 有未完成子任务（沿用现有拦截）。</p>
+  </div>
+
+  <!-- ================= 方案 2 ================= -->
+  <div class="mb-14">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="text-xs font-bold text-white bg-violet-600 rounded px-2 py-0.5">方案 2</span>
+      <h2 class="text-lg font-semibold text-gray-800">扁平展开（父 + 子都成行、都计数）</h2>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">所有待办（含子任务）平铺成行，子任务缩进挂在父下面；<b>统计把子任务一起数</b>。所有该做的事一眼全见、无需展开，但列表更长、KPI 数字会因拆分而"膨胀"（1 件大事被算成多个）。</p>
+
+    <div class="hero rounded-2xl p-5 text-white shadow-lg mb-3">
+      <div class="flex items-center gap-8">
+        <div><div class="kpi-num text-3xl font-extrabold">8</div><div class="text-[11px] text-white/70 mt-1">进行中（含子）</div></div>
+        <div><div class="kpi-num text-3xl font-extrabold text-amber-300">1</div><div class="text-[11px] text-white/70 mt-1">已逾期</div></div>
+        <div><div class="kpi-num text-3xl font-extrabold text-emerald-200">2</div><div class="text-[11px] text-white/70 mt-1">本周完成（含子）</div></div>
+        <div class="ml-auto text-right"><div class="text-sm font-semibold">今日进度 2 / 8</div><div class="text-[11px] text-white/60">父+子全部计入</div></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-5 py-3 text-sm font-semibold text-gray-900 border-b border-gray-100">今日待办</div>
+      <div class="divide-y divide-gray-100">
+        <div class="flex items-stretch gap-3 px-5 py-3">
+          <div class="w-14 flex-shrink-0 flex flex-col items-start justify-center"><span class="text-[13px] font-bold text-indigo-600">今天</span><span class="text-[11px] text-indigo-400">9/25</span></div>
+          <div class="w-[3px] self-stretch rounded-full my-0.5 bg-indigo-500"></div>
+          <div class="flex-1 min-w-0 py-0.5"><div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900">明亚兼职情况说明</span><span class="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">P0</span><span class="text-[10px] text-gray-400">父任务</span></div></div>
+          <div class="self-center text-[10px] text-gray-300">—</div>
+        </div>
+        <div class="flex items-center gap-2.5 pl-[92px] pr-5 py-2 bg-gray-50/50 border-l-2 border-gray-200 ml-[86px]">
+          <button class="w-4 h-4 rounded border-2 border-emerald-500 bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg></button>
+          <span class="flex-1 text-[12.5px] text-gray-400 line-through">明亚兼职信息提供</span><span class="text-[10.5px] text-gray-400">9/25</span>
+        </div>
+        <div class="flex items-center gap-2.5 pl-[92px] pr-5 py-2 bg-gray-50/50 border-l-2 border-gray-200 ml-[86px]">
+          <button class="w-4 h-4 rounded border-2 border-gray-300 bg-white hover:border-emerald-500 flex-shrink-0"></button>
+          <span class="flex-1 text-[12.5px] text-gray-700">明亚账号注销</span><span class="text-[10.5px] text-gray-400">9/27</span>
+        </div>
+        <div class="flex items-stretch gap-3 px-5 py-3">
+          <div class="w-14 flex-shrink-0 flex flex-col items-start justify-center"><span class="text-[13px] font-bold text-red-600">逾期</span><span class="text-[11px] text-red-400">7 天</span></div>
+          <div class="w-[3px] self-stretch rounded-full my-0.5 bg-red-400"></div>
+          <div class="flex-1 min-w-0 py-0.5"><div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900">研究一下服务器的问题</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">P1</span></div></div>
+          <div class="self-center w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 方案 3 ================= -->
+  <div class="mb-14">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="text-xs font-bold text-white bg-emerald-600 rounded px-2 py-0.5">方案 3</span>
+      <h2 class="text-lg font-semibold text-gray-800">聚合展示 + 加权真实进度</h2>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">列表与统计<b>仍按父任务</b>（同方案 1），但额外用<b>环形/进度条体现"含子任务的真实完成度"</b>：父任务进度 = 子任务完成比例，Hero 的"今日进度"也按加权算（父任务算 1，但完成度按子任务折算）。适合子任务多、想看"到底推进了多少"。</p>
+
+    <div class="hero rounded-2xl p-5 text-white shadow-lg mb-3">
+      <div class="flex items-center gap-8">
+        <div><div class="kpi-num text-3xl font-extrabold">6</div><div class="text-[11px] text-white/70 mt-1">进行中（父）</div></div>
+        <div><div class="kpi-num text-3xl font-extrabold text-amber-300">1</div><div class="text-[11px] text-white/70 mt-1">已逾期</div></div>
+        <div><div class="kpi-num text-3xl font-extrabold text-emerald-200">1</div><div class="text-[11px] text-white/70 mt-1">本周完成</div></div>
+        <div class="ml-auto flex items-center gap-3">
+          <div class="w-12 h-12 rounded-full flex items-center justify-center relative" style="background:conic-gradient(#34d399 0 25%, rgba(255,255,255,.25) 25% 100%)">
+            <div class="absolute inset-[5px] rounded-full bg-indigo-600 flex items-center justify-center text-[12px] font-bold">25%</div>
+          </div>
+          <div class="text-right"><div class="text-sm font-semibold">今日加权进度</div><div class="text-[11px] text-white/60">子任务折算 · 1.5 / 6</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-5 py-3 text-sm font-semibold text-gray-900 border-b border-gray-100">今日待办</div>
+      <div class="divide-y divide-gray-100">
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-gray-50">
+          <div class="w-14 flex-shrink-0 flex flex-col items-start justify-center"><span class="text-[13px] font-bold text-indigo-600">今天</span><span class="text-[11px] text-indigo-400">9/25</span></div>
+          <div class="w-[3px] self-stretch rounded-full my-0.5 bg-indigo-500"></div>
+          <div class="flex-1 min-w-0 py-0.5">
+            <div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900">明亚兼职情况说明</span><span class="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">P0</span></div>
+            <div class="mt-1.5 flex items-center gap-2">
+              <div class="w-28 h-1.5 rounded-full bg-gray-100 overflow-hidden"><div class="h-full bg-emerald-500" style="width:50%"></div></div>
+              <span class="text-[10.5px] text-gray-400">子任务 50%</span>
+            </div>
+          </div>
+          <div class="self-center flex items-center gap-2 flex-shrink-0">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center relative" style="background:conic-gradient(#6366f1 0 50%, #e5e7eb 50% 100%)"><div class="absolute inset-[3px] rounded-full bg-white flex items-center justify-center text-[9px] font-bold text-indigo-600">1/2</div></div>
+          </div>
+        </div>
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-gray-50">
+          <div class="w-14 flex-shrink-0 flex flex-col items-start justify-center"><span class="text-[13px] font-bold text-red-600">逾期</span><span class="text-[11px] text-red-400">7 天</span></div>
+          <div class="w-[3px] self-stretch rounded-full my-0.5 bg-red-400"></div>
+          <div class="flex-1 min-w-0 py-0.5"><div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900">研究一下服务器的问题</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">P1</span></div></div>
+          <div class="self-center w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 对比 ================= -->
+  <h2 class="text-lg font-semibold text-gray-800 mb-3">方案对比</h2>
+  <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 text-xs">
+        <tr><th class="text-left px-4 py-2 font-medium">维度</th><th class="text-left px-4 py-2 font-medium">方案1 聚合展开</th><th class="text-left px-4 py-2 font-medium">方案2 扁平全计数</th><th class="text-left px-4 py-2 font-medium">方案3 加权进度</th></tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 text-gray-700">
+        <tr><td class="px-4 py-2 text-gray-500">统计口径</td><td class="px-4 py-2">只数父任务</td><td class="px-4 py-2">父+子都数</td><td class="px-4 py-2">数父任务，进度按子折算</td></tr>
+        <tr><td class="px-4 py-2 text-gray-500">KPI 是否膨胀</td><td class="px-4 py-2 text-emerald-600">否</td><td class="px-4 py-2 text-red-500">是（1事算成多事）</td><td class="px-4 py-2 text-emerald-600">否</td></tr>
+        <tr><td class="px-4 py-2 text-gray-500">列表整洁度</td><td class="px-4 py-2 text-emerald-600">高（父一行）</td><td class="px-4 py-2 text-amber-600">低（子任务全展开更长）</td><td class="px-4 py-2 text-emerald-600">高</td></tr>
+        <tr><td class="px-4 py-2 text-gray-500">进度可见性</td><td class="px-4 py-2 text-amber-600">中（点/分数）</td><td class="px-4 py-2 text-emerald-600">高（逐条可见）</td><td class="px-4 py-2 text-emerald-600">最高（环形/条）</td></tr>
+        <tr><td class="px-4 py-2 text-gray-500">改动量</td><td class="px-4 py-2">中（加展开+进度点）</td><td class="px-4 py-2">大（列表+统计都改）</td><td class="px-4 py-2">中（进度算法+UI）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-gray-700">
+    <b class="text-indigo-700">建议：</b>以<b>方案 1</b> 为主干（统计只数父任务、KPI 不膨胀、列表干净），父行用 <b>●●○○ 进度点 + 1/2 分数</b> 体现子任务；如果之后想看"整体推进了多少"，把方案 3 的<b>加权进度环</b>叠加到 Hero 即可（两者不冲突，可 1+3 组合）。方案 2 仅在你希望"所有子任务都当成独立待办来清"时才选，代价是数字膨胀。
+  </div>
+</div>
+
+<script>
+function toggleP1(){
+  const el = document.getElementById('p1-parent')
+  el.classList.toggle('expanded'); el.classList.toggle('collapsed')
+}
+</script>
+</body>
+</html>

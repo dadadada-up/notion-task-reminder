@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>习惯打卡管理 - 3套设计方案</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111827; }
+
+  /* ===== 方案标题区 ===== */
+  .proposal-header {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    color: white;
+    padding: 40px 32px 32px;
+    text-align: center;
+  }
+  .proposal-header h1 { font-size: 28px; margin-bottom: 8px; }
+  .proposal-header p { opacity: 0.85; font-size: 15px; }
+
+  .proposal-section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+  .proposal-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .proposal-title h2 { font-size: 22px; color: #1f2937; }
+  .proposal-badge {
+    display: inline-flex;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-recommend { background: #dcfce7; color: #166534; }
+  .badge-alt { background: #e0e7ff; color: #3730a3; }
+  .proposal-desc { color: #6b7280; font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+  .proposal-divider { border: none; border-top: 2px dashed #d1d5db; margin: 48px 0; }
+
+  /* ===== 模拟页面容器 ===== */
+  .mock-page {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  }
+  .mock-page-header {
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mock-page-header h3 { font-size: 18px; font-weight: 700; }
+  .mock-page-header .date { font-size: 13px; color: #9ca3af; margin-top: 2px; }
+  .btn-new {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; background: #7c3aed; color: white;
+    border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer;
+  }
+  .mock-body { padding: 20px 24px; }
+
+  /* ===== 方案一：卡片内联管理 ===== */
+  .p1-habit-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.15s;
+  }
+  .p1-habit-card:hover { border-color: #c4b5fd; box-shadow: 0 2px 8px rgba(124,58,237,0.08); }
+  .p1-habit-card.checked { background: #f0fdf4; border-color: #86efac; }
+  .p1-checkbox {
+    width: 22px; height: 22px; border-radius: 4px; border: 2px solid #d1d5db;
+    flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .p1-checkbox.done { background: #22c55e; border-color: #22c55e; color: white; font-size: 14px; }
+  .p1-info { flex: 1; }
+  .p1-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .p1-info .meta { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #9ca3af; }
+  .p1-tag { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .p1-tag-freq { background: #dbeafe; color: #1d4ed8; }
+  .p1-tag-progress { background: #f3e8ff; color: #7c3aed; }
+  .p1-actions {
+    display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s;
+  }
+  .p1-habit-card:hover .p1-actions { opacity: 1; }
+  .p1-action-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px; background: transparent;
+  }
+  .p1-action-btn:hover { background: #f3f4f6; }
+  .p1-action-btn.edit:hover { background: #ede9fe; color: #7c3aed; }
+  .p1-action-btn.pause:hover { background: #fef3c7; color: #d97706; }
+  .p1-action-btn.delete:hover { background: #fee2e2; color: #dc2626; }
+  .p1-checkin-btn {
+    padding: 5px 14px; border-radius: 6px; border: none;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .p1-checkin-btn.primary { background: #7c3aed; color: white; }
+  .p1-checkin-btn.done { background: #dcfce7; color: #166534; }
+
+  /* 暂停/失效区 */
+  .p1-inactive-section { margin-top: 20px; }
+  .p1-inactive-header {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #9ca3af; margin-bottom: 10px; cursor: pointer;
+  }
+  .p1-inactive-header:hover { color: #6b7280; }
+  .p1-inactive-card {
+    border: 1px dashed #e5e7eb; border-radius: 8px; padding: 10px 14px;
+    margin-bottom: 6px; display: flex; align-items: center; gap: 12px;
+    background: #fafafa; opacity: 0.7;
+  }
+  .p1-inactive-card:hover { opacity: 1; }
+  .p1-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .p1-status-dot.paused { background: #f59e0b; }
+  .p1-status-dot.inactive { background: #d1d5db; }
+  .p1-inactive-card .name { flex: 1; font-size: 13px; color: #6b7280; }
+  .p1-mini-btn {
+    padding: 3px 10px; border-radius: 4px; border: 1px solid #e5e7eb;
+    font-size: 11px; background: white; cursor: pointer; color: #6b7280;
+  }
+  .p1-mini-btn:hover { border-color: #7c3aed; color: #7c3aed; }
+  .p1-mini-btn.danger:hover { border-color: #dc2626; color: #dc2626; }
+
+  /* ===== 方案二：Tab 分区管理 ===== */
+  .p2-tabs {
+    display: flex; gap: 0; border-bottom: 2px solid #e5e7eb; margin-bottom: 16px;
+  }
+  .p2-tab {
+    padding: 10px 20px; font-size: 13px; font-weight: 500; color: #9ca3af;
+    border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .p2-tab.active { color: #7c3aed; border-bottom-color: #7c3aed; }
+  .p2-tab .count {
+    padding: 1px 7px; border-radius: 10px; font-size: 11px;
+    background: #f3f4f6; color: #6b7280;
+  }
+  .p2-tab.active .count { background: #ede9fe; color: #7c3aed; }
+
+  /* 管理表格 */
+  .p2-manage-table { width: 100%; border-collapse: collapse; }
+  .p2-manage-table th {
+    text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600;
+    color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .p2-manage-table td {
+    padding: 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px;
+    vertical-align: middle;
+  }
+  .p2-manage-table tr:hover td { background: #faf5ff; }
+  .p2-status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  }
+  .p2-status-badge.active { background: #dcfce7; color: #166534; }
+  .p2-status-badge.paused { background: #fef3c7; color: #92400e; }
+  .p2-status-badge.inactive { background: #f3f4f6; color: #6b7280; }
+  .p2-table-actions { display: flex; gap: 6px; }
+  .p2-table-btn {
+    padding: 5px 12px; border-radius: 6px; border: 1px solid #e5e7eb;
+    font-size: 12px; background: white; cursor: pointer; display: flex;
+    align-items: center; gap: 4px;
+  }
+  .p2-table-btn:hover { border-color: #7c3aed; color: #7c3aed; }
+  .p2-table-btn.danger { color: #dc2626; }
+  .p2-table-btn.danger:hover { border-color: #dc2626; background: #fef2f2; }
+
+  /* ===== 方案三：侧滑面板 ===== */
+  .p3-layout { display: flex; position: relative; min-height: 500px; }
+  .p3-main { flex: 1; }
+  .p3-habit-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 10px;
+    margin-bottom: 8px; background: white; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .p3-habit-item:hover { border-color: #c4b5fd; background: #faf5ff; }
+  .p3-habit-item.selected { border-color: #7c3aed; background: #faf5ff; box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
+  .p3-habit-item .checkbox {
+    width: 22px; height: 22px; border-radius: 6px; border: 2px solid #d1d5db;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .p3-habit-item .checkbox.done { background: #22c55e; border-color: #22c55e; color: white; font-size: 14px; }
+  .p3-habit-item .info { flex: 1; }
+  .p3-habit-item .info h4 { font-size: 14px; font-weight: 600; }
+  .p3-habit-item .info .sub { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+  .p3-checkin-btn {
+    padding: 6px 16px; border-radius: 6px; border: none;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    background: #7c3aed; color: white;
+  }
+
+  /* 侧滑面板 */
+  .p3-side-panel {
+    width: 320px; border-left: 1px solid #e5e7eb; background: white;
+    padding: 0; flex-shrink: 0; display: flex; flex-direction: column;
+  }
+  .p3-panel-header {
+    padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .p3-panel-header h4 { font-size: 15px; font-weight: 600; }
+  .p3-panel-close { background: none; border: none; font-size: 18px; cursor: pointer; color: #9ca3af; }
+  .p3-panel-body { padding: 20px; flex: 1; overflow-y: auto; }
+  .p3-detail-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+    font-size: 13px;
+  }
+  .p3-detail-row .label { color: #9ca3af; width: 60px; flex-shrink: 0; }
+  .p3-detail-row .value { color: #1f2937; font-weight: 500; }
+  .p3-panel-actions {
+    padding: 16px 20px; border-top: 1px solid #e5e7eb;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .p3-panel-btn {
+    width: 100%; padding: 9px; border-radius: 8px; border: 1px solid #e5e7eb;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: white;
+  }
+  .p3-panel-btn:hover { background: #f9fafb; }
+  .p3-panel-btn.edit { color: #7c3aed; border-color: #c4b5fd; }
+  .p3-panel-btn.edit:hover { background: #faf5ff; }
+  .p3-panel-btn.pause { color: #d97706; border-color: #fcd34d; }
+  .p3-panel-btn.pause:hover { background: #fffbeb; }
+  .p3-panel-btn.danger { color: #dc2626; border-color: #fca5a5; }
+  .p3-panel-btn.danger:hover { background: #fef2f2; }
+  .p3-mini-calendar {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 12px;
+  }
+  .p3-mini-day {
+    width: 100%; aspect-ratio: 1; border-radius: 4px; font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f3f4f6; color: #9ca3af;
+  }
+  .p3-mini-day.done { background: #22c55e; color: white; }
+  .p3-mini-day.today { border: 1px solid #7c3aed; }
+
+  /* ===== 对比表格 ===== */
+  .compare-table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  .compare-table th, .compare-table td {
+    padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 13px;
+  }
+  .compare-table th { background: #f9fafb; font-weight: 600; color: #6b7280; }
+  .compare-table td:first-child { font-weight: 500; color: #374151; }
+  .check { color: #22c55e; font-weight: bold; }
+  .cross { color: #d1d5db; }
+  .star { color: #f59e0b; }
+</style>
+</head>
+<body>
+
+<!-- ==================== 方案一 ==================== -->
+<div class="proposal-header">
+  <h1>习惯打卡管理 — 设计方案对比</h1>
+  <p>3 种方案，从轻量到重量级，满足不同管理深度需求</p>
+</div>
+
+<div class="proposal-section">
+  <div class="proposal-title">
+    <h2>方案一：卡片内联管理</h2>
+    <span class="proposal-badge badge-recommend">★ 推荐</span>
+  </div>
+  <p class="proposal-desc">
+    <strong>核心理念</strong>：在现有打卡卡片上 hover 显示操作按钮，底部折叠展示已暂停/已失效习惯。<br>
+    <strong>优点</strong>：改动最小，不打断打卡心流，hover 出现操作按钮不干扰日常使用。<br>
+    <strong>适合场景</strong>：习惯数量 &lt; 15 个，管理操作不频繁。
+  </p>
+
+  <div class="mock-page">
+    <div class="mock-page-header">
+      <div>
+        <h3>习惯打卡</h3>
+        <div class="date">2026年9月15日 星期二</div>
+      </div>
+      <button class="btn-new">+ 新增习惯</button>
+    </div>
+    <div class="mock-body">
+      <!-- 打卡列表 -->
+      <div style="font-size:13px;color:#6b7280;margin-bottom:12px;font-weight:600;">今日打卡 (5个习惯)</div>
+
+      <div class="p1-habit-card checked">
+        <div class="p1-checkbox done">✓</div>
+        <div class="p1-info">
+          <h4>早起 6:30</h4>
+          <div class="meta">
+            <span class="p1-tag p1-tag-freq">每日</span>
+            <span class="p1-tag p1-tag-progress">本月 28/30</span>
+            <span>连续 15 天</span>
+          </div>
+        </div>
+        <button class="p1-checkin-btn done">✓ 已完成</button>
+        <div class="p1-actions">
+          <button class="p1-action-btn edit" title="编辑">✏</button>
+          <button class="p1-action-btn pause" title="暂停">⏸</button>
+        </div>
+      </div>
+
+      <div class="p1-habit-card">
+        <div class="p1-checkbox"></div>
+        <div class="p1-info">
+          <h4>运动 30 分钟</h4>
+          <div class="meta">
+            <span class="p1-tag p1-tag-freq">每日</span>
+            <span class="p1-tag p1-tag-progress">本月 18/30</span>
+            <span>连续 3 天</span>
+          </div>
+        </div>
+        <button class="p1-checkin-btn primary">打卡</button>
+        <div class="p1-actions">
+          <button class="p1-action-btn edit" title="编辑">✏</button>
+          <button class="p1-action-btn pause" title="暂停">⏸</button>
+        </div>
+      </div>
+
+      <div class="p1-habit-card">
+        <div class="p1-checkbox"></div>
+        <div class="p1-info">
+          <h4>阅读 20 页</h4>
+          <div class="meta">
+            <span class="p1-tag p1-tag-freq">工作日</span>
+            <span class="p1-tag p1-tag-progress">本月 12/22</span>
+            <span>连续 7 天</span>
+          </div>
+        </div>
+        <button class="p1-checkin-btn primary">打卡</button>
+        <div class="p1-actions">
+          <button class="p1-action-btn edit" title="编辑">✏</button>
+          <button class="p1-action-btn pause" title="暂停">⏸</button>
+        </div>
+      </div>
+
+      <!-- 已暂停/已失效 折叠区 -->
+      <div class="p1-inactive-section">
+        <div class="p1-inactive-header">
+          <span>▸</span>
+          <span>已暂停 / 已失效 (3个习惯)</span>
+        </div>
+        <div class="p1-inactive-card">
+          <div class="p1-status-dot paused"></div>
+          <span class="name">冥想 10 分钟</span>
+          <span style="font-size:11px;color:#d97706;background:#fef3c7;padding:2px 6px;border-radius:3px;">已暂停</span>
+          <button class="p1-mini-btn">恢复</button>
+          <button class="p1-mini-btn">编辑</button>
+          <button class="p1-mini-btn danger">删除</button>
+        </div>
+        <div class="p1-inactive-card">
+          <div class="p1-status-dot inactive"></div>
+          <span class="name">写日记</span>
+          <span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:2px 6px;border-radius:3px;">已失效</span>
+          <button class="p1-mini-btn">恢复</button>
+          <button class="p1-mini-btn danger">删除</button>
+        </div>
+        <div class="p1-inactive-card">
+          <div class="p1-status-dot inactive"></div>
+          <span class="name">冷水澡</span>
+          <span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:2px 6px;border-radius:3px;">已失效</span>
+          <button class="p1-mini-btn">恢复</button>
+          <button class="p1-mini-btn danger">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="proposal-divider">
+
+<!-- ==================== 方案二 ==================== -->
+<div class="proposal-section">
+  <div class="proposal-title">
+    <h2>方案二：Tab 分区管理</h2>
+    <span class="proposal-badge badge-alt">方案 B</span>
+  </div>
+  <p class="proposal-desc">
+    <strong>核心理念</strong>：将「打卡」和「管理」拆成两个 Tab 页签，管理 Tab 用表格展示所有习惯的完整信息和操作。<br>
+    <strong>优点</strong>：管理功能强大，信息密度高，适合批量操作。<br>
+    <strong>缺点</strong>：多了一层切换，编辑需要弹窗配合。
+  </p>
+
+  <div class="mock-page">
+    <div class="mock-page-header">
+      <div>
+        <h3>习惯打卡</h3>
+        <div class="date">2026年9月15日 星期二</div>
+      </div>
+      <button class="btn-new">+ 新增习惯</button>
+    </div>
+    <div class="mock-body">
+      <!-- Tab 切换 -->
+      <div class="p2-tabs">
+        <div class="p2-tab active">
+          每日打卡
+          <span class="count">5</span>
+        </div>
+        <div class="p2-tab">
+          习惯管理
+          <span class="count">8</span>
+        </div>
+      </div>
+
+      <!-- 管理 Tab 内容（展示态） -->
+      <div style="background:white;border-radius:10px;border:1px solid #e5e7eb;overflow:hidden;">
+        <table class="p2-manage-table">
+          <thead>
+            <tr>
+              <th>习惯名称</th>
+              <th>频率</th>
+              <th>状态</th>
+              <th>本月完成率</th>
+              <th>累计天数</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600;">早起 6:30</td>
+              <td>每日</td>
+              <td><span class="p2-status-badge active">● 生效中</span></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;max-width:80px;">
+                    <div style="width:93%;height:100%;background:#22c55e;border-radius:3px;"></div>
+                  </div>
+                  <span>93%</span>
+                </div>
+              </td>
+              <td>85 天</td>
+              <td>
+                <div class="p2-table-actions">
+                  <button class="p2-table-btn">✏ 编辑</button>
+                  <button class="p2-table-btn">⏸ 暂停</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-weight:600;">运动 30 分钟</td>
+              <td>每日</td>
+              <td><span class="p2-status-badge active">● 生效中</span></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;max-width:80px;">
+                    <div style="width:60%;height:100%;background:#7c3aed;border-radius:3px;"></div>
+                  </div>
+                  <span>60%</span>
+                </div>
+              </td>
+              <td>42 天</td>
+              <td>
+                <div class="p2-table-actions">
+                  <button class="p2-table-btn">✏ 编辑</button>
+                  <button class="p2-table-btn">⏸ 暂停</button>
+                </div>
+              </td>
+            </tr>
+            <tr style="opacity:0.7;">
+              <td style="font-weight:600;">冥想 10 分钟</td>
+              <td>每日</td>
+              <td><span class="p2-status-badge paused">● 已暂停</span></td>
+              <td>—</td>
+              <td>23 天</td>
+              <td>
+                <div class="p2-table-actions">
+                  <button class="p2-table-btn">✏ 编辑</button>
+                  <button class="p2-table-btn" style="color:#166534;">▶ 恢复</button>
+                  <button class="p2-table-btn danger">✕ 删除</button>
+                </div>
+              </td>
+            </tr>
+            <tr style="opacity:0.5;">
+              <td style="font-weight:600;">写日记</td>
+              <td>每日</td>
+              <td><span class="p2-status-badge inactive">● 已失效</span></td>
+              <td>—</td>
+              <td>11 天</td>
+              <td>
+                <div class="p2-table-actions">
+                  <button class="p2-table-btn" style="color:#166534;">▶ 恢复</button>
+                  <button class="p2-table-btn danger">✕ 删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="proposal-divider">
+
+<!-- ==================== 方案三 ==================== -->
+<div class="proposal-section">
+  <div class="proposal-title">
+    <h2>方案三：列表 + 侧滑详情面板</h2>
+    <span class="proposal-badge badge-alt">方案 C</span>
+  </div>
+  <p class="proposal-desc">
+    <strong>核心理念</strong>：左侧保持打卡列表，点击习惯后右侧滑出详情面板，面板内提供编辑/暂停/删除等完整操作。<br>
+    <strong>优点</strong>：信息展示最丰富（含迷你日历、详细统计），操作集中不弹窗。<br>
+    <strong>缺点</strong>：布局变化最大，窄屏体验下降，开发量最大。
+  </p>
+
+  <div class="mock-page">
+    <div class="mock-page-header">
+      <div>
+        <h3>习惯打卡</h3>
+        <div class="date">2026年9月15日 星期二</div>
+      </div>
+      <button class="btn-new">+ 新增习惯</button>
+    </div>
+    <div class="p3-layout">
+      <!-- 左侧：打卡列表 -->
+      <div class="p3-main" style="padding:16px;">
+        <div style="font-size:13px;color:#6b7280;margin-bottom:10px;font-weight:600;">今日打卡</div>
+
+        <div class="p3-habit-item selected">
+          <div class="checkbox done">✓</div>
+          <div class="info">
+            <h4>早起 6:30</h4>
+            <div class="sub">每日 · 连续 15 天 · 本月 93%</div>
+          </div>
+          <button class="p3-checkin-btn" style="background:#dcfce7;color:#166534;">已完成</button>
+        </div>
+
+        <div class="p3-habit-item">
+          <div class="checkbox"></div>
+          <div class="info">
+            <h4>运动 30 分钟</h4>
+            <div class="sub">每日 · 连续 3 天 · 本月 60%</div>
+          </div>
+          <button class="p3-checkin-btn">打卡</button>
+        </div>
+
+        <div class="p3-habit-item">
+          <div class="checkbox"></div>
+          <div class="info">
+            <h4>阅读 20 页</h4>
+            <div class="sub">工作日 · 连续 7 天 · 本月 55%</div>
+          </div>
+          <button class="p3-checkin-btn">打卡</button>
+        </div>
+
+        <div style="margin-top:16px;font-size:12px;color:#9ca3af;font-weight:600;">已暂停 (1)</div>
+        <div class="p3-habit-item" style="opacity:0.6;">
+          <div class="checkbox" style="border-color:#f59e0b;border-style:dashed;"></div>
+          <div class="info">
+            <h4 style="color:#92400e;">冥想 10 分钟</h4>
+            <div class="sub" style="color:#d97706;">已暂停 · 累计 23 天</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧：详情面板 -->
+      <div class="p3-side-panel">
+        <div class="p3-panel-header">
+          <h4>早起 6:30</h4>
+          <button class="p3-panel-close">×</button>
+        </div>
+        <div class="p3-panel-body">
+          <div class="p3-detail-row">
+            <span class="label">状态</span>
+            <span class="p2-status-badge active" style="font-size:12px;">● 生效中</span>
+          </div>
+          <div class="p3-detail-row">
+            <span class="label">频率</span>
+            <span class="value">每日</span>
+          </div>
+          <div class="p3-detail-row">
+            <span class="label">目标</span>
+            <span class="value">每周 7 次 / 每月 30 次</span>
+          </div>
+          <div class="p3-detail-row">
+            <span class="label">累计</span>
+            <span class="value">85 天</span>
+          </div>
+          <div class="p3-detail-row">
+            <span class="label">阶段</span>
+            <span class="value">2026年Q3</span>
+          </div>
+          <div class="p3-detail-row">
+            <span class="label">备注</span>
+            <span class="value" style="font-weight:400;color:#6b7280;">闹钟 6:20，起床后喝杯水</span>
+          </div>
+
+          <div style="margin-top:16px;">
+            <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;">本月打卡日历</div>
+            <div class="p3-mini-calendar">
+              <div class="p3-mini-day done">1</div><div class="p3-mini-day done">2</div><div class="p3-mini-day done">3</div>
+              <div class="p3-mini-day done">4</div><div class="p3-mini-day done">5</div><div class="p3-mini-day" style="background:#e5e7eb;">6</div>
+              <div class="p3-mini-day done">7</div><div class="p3-mini-day done">8</div><div class="p3-mini-day done">9</div>
+              <div class="p3-mini-day done">10</div><div class="p3-mini-day done">11</div><div class="p3-mini-day done">12</div>
+              <div class="p3-mini-day done">13</div><div class="p3-mini-day done">14</div><div class="p3-mini-day today done">15</div>
+              <div class="p3-mini-day">16</div><div class="p3-mini-day">17</div><div class="p3-mini-day">18</div>
+              <div class="p3-mini-day">19</div><div class="p3-mini-day">20</div><div class="p3-mini-day">21</div>
+            </div>
+          </div>
+        </div>
+        <div class="p3-panel-actions">
+          <button class="p3-panel-btn edit">✏ 编辑习惯</button>
+          <button class="p3-panel-btn pause">⏸ 暂停习惯</button>
+          <button class="p3-panel-btn danger">✕ 删除习惯</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="proposal-divider">
+
+<!-- ==================== 方案对比 ==================== -->
+<div class="proposal-section">
+  <div class="proposal-title"><h2>方案对比</h2></div>
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th style="width:160px;">对比维度</th>
+        <th>方案一：卡片内联 ★</th>
+        <th>方案二：Tab 分区</th>
+        <th>方案三：侧滑面板</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>改动范围</td>
+        <td><span class="check">★</span> 最小，仅改 HabitCard + HabitTracker</td>
+        <td>中等，新增管理 Tab 内容</td>
+        <td><span class="cross">✕</span> 最大，布局重构</td>
+      </tr>
+      <tr>
+        <td>日常打卡体验</td>
+        <td><span class="check">★</span> 无干扰，hover 才显示操作</td>
+        <td><span class="check">★</span> 完全隔离，Tab 切换</td>
+        <td>中等，选中态变化</td>
+      </tr>
+      <tr>
+        <td>管理效率</td>
+        <td>中等，逐个操作</td>
+        <td><span class="check">★</span> 表格批量，一目了然</td>
+        <td><span class="check">★</span> 信息最全</td>
+      </tr>
+      <tr>
+        <td>信息密度</td>
+        <td>低，卡片空间有限</td>
+        <td><span class="check">★</span> 表格高信息密度</td>
+        <td><span class="check">★</span> 面板展示最丰富</td>
+      </tr>
+      <tr>
+        <td>窄屏适配</td>
+        <td><span class="check">★</span> 天然响应式</td>
+        <td><span class="check">★</span> 表格可横滚</td>
+        <td><span class="cross">✕</span> 侧滑面板窄屏体验差</td>
+      </tr>
+      <tr>
+        <td>开发工作量</td>
+        <td><span class="check">★</span> 1-2 小时</td>
+        <td>3-4 小时</td>
+        <td><span class="cross">✕</span> 5-6 小时</td>
+      </tr>
+      <tr>
+        <td>编辑交互</td>
+        <td>复用现有 HabitModal 弹窗</td>
+        <td>复用现有 HabitModal 弹窗</td>
+        <td>面板内直接编辑（需新设计）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:32px;padding:20px 24px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:12px;">
+    <h3 style="font-size:16px;color:#7c3aed;margin-bottom:8px;">★ 推荐方案一：卡片内联管理</h3>
+    <p style="font-size:14px;color:#6b7280;line-height:1.8;">
+      <strong>理由</strong>：你的习惯打卡页面核心场景是<strong>快速打卡</strong>，管理是低频操作。方案一在现有布局上改动最小——
+      hover 卡片时右上角出现编辑/暂停图标，底部折叠区展示暂停和失效的习惯。
+      日常打卡完全不受影响，管理时 hover 即可操作。编辑复用已有的 HabitModal 弹窗（改为支持编辑模式），
+      不需要重新设计布局，开发量最小，风险最低。
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

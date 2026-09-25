@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DB Manager - 设计方案</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #1f2937; }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 24px; }
+
+  .proposal-label {
+    display: inline-block; font-size: 12px; font-weight: 600; color: #7c3aed;
+    background: #ede9fe; padding: 3px 10px; border-radius: 12px; margin-bottom: 12px;
+  }
+  .proposal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .proposal-desc { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+
+  /* Mock SQL Client */
+  .sql-client {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    height: 680px; display: flex; flex-direction: column;
+  }
+
+  /* Top bar */
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid #e5e7eb; background: #fafafa;
+  }
+  .top-bar-left { display: flex; align-items: center; gap: 8px; }
+  .top-bar-left .db-icon { width: 20px; height: 20px; background: #7c3aed; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+  .top-bar-left .db-icon svg { width: 12px; height: 12px; }
+  .top-bar-left span { font-size: 13px; font-weight: 600; color: #374151; }
+  .top-bar-right { display: flex; gap: 6px; }
+  .top-bar-right button {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #e5e7eb;
+    background: #fff; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 4px;
+  }
+  .top-bar-right button:hover { background: #f9fafb; }
+  .top-bar-right button.primary { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+  .top-bar-right button.primary:hover { background: #6d28d9; }
+
+  /* Main area */
+  .main-area { display: flex; flex: 1; overflow: hidden; }
+
+  /* Left sidebar */
+  .sidebar {
+    width: 220px; border-right: 1px solid #e5e7eb; background: #fafbfc;
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 10px 14px; border-bottom: 1px solid #e5e7eb;
+    font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .sidebar-search {
+    padding: 8px 10px; border-bottom: 1px solid #f3f4f6;
+  }
+  .sidebar-search input {
+    width: 100%; padding: 5px 8px; font-size: 12px; border: 1px solid #e5e7eb;
+    border-radius: 6px; outline: none; background: #fff;
+  }
+  .sidebar-search input:focus { border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,0.1); }
+
+  .table-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .table-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+    cursor: pointer; font-size: 13px; color: #374151; transition: all 0.1s;
+    border-left: 3px solid transparent;
+  }
+  .table-item:hover { background: #f3f0ff; }
+  .table-item.active { background: #ede9fe; border-left-color: #7c3aed; color: #7c3aed; font-weight: 600; }
+  .table-item .tbl-icon { color: #9ca3af; flex-shrink: 0; }
+  .table-item.active .tbl-icon { color: #7c3aed; }
+  .table-item .row-count {
+    margin-left: auto; font-size: 10px; color: #9ca3af; font-weight: 400;
+    background: #f3f4f6; padding: 1px 6px; border-radius: 8px;
+  }
+  .table-item.active .row-count { background: rgba(124,58,237,0.15); color: #7c3aed; }
+
+  /* Right content */
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; border-bottom: 1px solid #e5e7eb; background: #fafafa;
+    padding: 0 12px; gap: 0;
+  }
+  .tab {
+    padding: 8px 16px; font-size: 12px; color: #6b7280; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab:hover { color: #374151; }
+  .tab.active { color: #7c3aed; border-bottom-color: #7c3aed; font-weight: 600; }
+  .tab .badge {
+    font-size: 10px; background: #f3f4f6; color: #6b7280; padding: 1px 6px;
+    border-radius: 8px; font-weight: 500;
+  }
+  .tab.active .badge { background: #ede9fe; color: #7c3aed; }
+
+  /* Tab content */
+  .tab-content { flex: 1; overflow: auto; }
+
+  /* Data table */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table thead { position: sticky; top: 0; z-index: 1; }
+  .data-table th {
+    background: #f9fafb; padding: 8px 12px; text-align: left; font-weight: 600;
+    color: #6b7280; border-bottom: 2px solid #e5e7eb; white-space: nowrap;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .data-table td {
+    padding: 7px 12px; border-bottom: 1px solid #f3f4f6; color: #374151;
+    white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 12px;
+  }
+  .data-table tr:hover td { background: #faf8ff; }
+  .data-table .null-val { color: #d1d5db; font-style: italic; }
+  .data-table .pk-badge {
+    display: inline-block; font-size: 9px; background: #fef3c7; color: #92400e;
+    padding: 0 4px; border-radius: 3px; margin-left: 4px; font-weight: 600;
+  }
+
+  /* Structure view */
+  .structure-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .structure-table th {
+    background: #f9fafb; padding: 10px 16px; text-align: left; font-weight: 600;
+    color: #6b7280; border-bottom: 2px solid #e5e7eb; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .structure-table td {
+    padding: 9px 16px; border-bottom: 1px solid #f3f4f6; color: #374151;
+  }
+  .structure-table .type { color: #7c3aed; font-family: monospace; font-size: 12px; }
+  .structure-table .constraint { color: #059669; font-size: 11px; }
+
+  /* SQL view */
+  .sql-view {
+    padding: 16px; background: #1e1e2e; color: #cdd6f4; font-family: 'SF Mono', Monaco, monospace;
+    font-size: 13px; line-height: 1.7; min-height: 100%; white-space: pre-wrap;
+  }
+  .sql-view .keyword { color: #cba6f7; font-weight: 600; }
+  .sql-view .type { color: #89b4fa; }
+  .sql-view .string { color: #a6e3a1; }
+  .sql-view .comment { color: #6c7086; font-style: italic; }
+
+  /* SQL Editor panel (bottom) */
+  .sql-editor-panel {
+    border-top: 2px solid #e5e7eb; background: #fff; flex-shrink: 0;
+  }
+  .editor-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; border-bottom: 1px solid #f3f4f6; background: #fafafa;
+  }
+  .editor-toolbar-left { display: flex; align-items: center; gap: 8px; }
+  .editor-toolbar-left .label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; }
+  .editor-toolbar-right { display: flex; gap: 6px; }
+  .btn-run {
+    font-size: 11px; padding: 4px 12px; border-radius: 6px; border: none;
+    background: #7c3aed; color: #fff; cursor: pointer; font-weight: 600;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .btn-run:hover { background: #6d28d9; }
+  .btn-secondary {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #e5e7eb;
+    background: #fff; color: #6b7280; cursor: pointer;
+  }
+  .btn-secondary:hover { background: #f9fafb; }
+  .editor-textarea {
+    width: 100%; height: 80px; padding: 10px 14px; border: none; outline: none;
+    font-family: 'SF Mono', Monaco, monospace; font-size: 13px; line-height: 1.6;
+    resize: none; color: #1f2937; background: #fff;
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 12px; border-top: 1px solid #e5e7eb; background: #fafafa;
+    font-size: 11px; color: #9ca3af;
+  }
+  .status-bar .status-left { display: flex; gap: 16px; }
+  .status-bar .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10b981; margin-right: 4px; }
+
+  /* Resize handle */
+  .resize-handle {
+    height: 4px; background: #e5e7eb; cursor: row-resize; transition: background 0.15s;
+  }
+  .resize-handle:hover { background: #7c3aed; }
+
+  /* Annotations */
+  .annotation {
+    position: relative; margin-top: 16px; padding: 12px 16px;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    font-size: 12px; color: #92400e; line-height: 1.6;
+  }
+  .annotation strong { color: #78350f; }
+
+  .divider { height: 32px; }
+
+  /* Open tabs bar */
+  .open-tabs {
+    display: flex; align-items: center; background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb; padding: 0; overflow-x: auto;
+  }
+  .open-tab {
+    display: flex; align-items: center; gap: 6px; padding: 6px 14px;
+    font-size: 12px; color: #6b7280; cursor: pointer; border-right: 1px solid #e5e7eb;
+    white-space: nowrap; background: transparent; transition: all 0.1s;
+  }
+  .open-tab:hover { background: #e5e7eb; }
+  .open-tab.active { background: #fff; color: #7c3aed; font-weight: 600; }
+  .open-tab .close-tab { font-size: 14px; color: #9ca3af; margin-left: 4px; line-height: 1; }
+  .open-tab .close-tab:hover { color: #ef4444; }
+  .open-tab svg { width: 14px; height: 14px; }
+
+  /* Quick actions in sidebar */
+  .sidebar-section { padding: 8px 10px; border-top: 1px solid #f3f4f6; }
+  .sidebar-section-title { font-size: 10px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 4px; margin-bottom: 4px; }
+  .sidebar-action {
+    display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+    font-size: 12px; color: #6b7280; cursor: pointer; border-radius: 4px;
+  }
+  .sidebar-action:hover { background: #f3f0ff; color: #7c3aed; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>数据库管理页面 — 重构方案</h1>
+  <p class="subtitle">类 DBeaver / DataGrip 风格，左侧表树 + 右侧多标签内容 + 底部 SQL 编辑器</p>
+
+  <!-- ===== Mock 1: 选中表 → 数据视图 ===== -->
+  <span class="proposal-label">方案推荐</span>
+  <p class="proposal-title">类 IDE 数据库客户端</p>
+  <p class="proposal-desc">左侧表列表可选中展开，右侧多标签页显示（数据 / 结构 / 建表SQL），底部 SQL 编辑器面板可折叠。双击表名打开新标签页。</p>
+
+  <div class="sql-client">
+    <!-- Top bar -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <div class="db-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+        </div>
+        <span>workbench-db (D1)</span>
+      </div>
+      <div class="top-bar-right">
+        <button>↻ 刷新</button>
+        <button>⬇ 导出</button>
+        <button class="primary">▶ 执行 (⌘↵)</button>
+      </div>
+    </div>
+
+    <div class="main-area">
+      <!-- Left sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">数据表 (10)</div>
+        <div class="sidebar-search">
+          <input type="text" placeholder="搜索表名..." />
+        </div>
+        <div class="table-list">
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            activity_logs
+            <span class="row-count">0</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            app_config
+            <span class="row-count">3</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            daily_logs
+            <span class="row-count">128</span>
+          </div>
+          <div class="table-item active">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            habits
+            <span class="row-count">8</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            share_links
+            <span class="row-count">2</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            task_dependencies
+            <span class="row-count">0</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            task_images
+            <span class="row-count">5</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            tasks
+            <span class="row-count">47</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            users
+            <span class="row-count">2</span>
+          </div>
+          <div class="table-item">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            weekly_summaries
+            <span class="row-count">12</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right content -->
+      <div class="content">
+        <!-- Open tabs (like IDE) -->
+        <div class="open-tabs">
+          <div class="open-tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            tasks
+            <span class="close-tab">×</span>
+          </div>
+          <div class="open-tab active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            habits
+            <span class="close-tab">×</span>
+          </div>
+          <div class="open-tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#9ca3af"><path d="M16 18l6-6-6-6"/><path d="M8 18l-6-6 6-6"/></svg>
+            SQL 查询
+            <span class="close-tab">×</span>
+          </div>
+        </div>
+
+        <!-- Sub-tabs: Data / Structure / SQL -->
+        <div class="tabs">
+          <div class="tab active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 3v18"/></svg>
+            数据 <span class="badge">8 行</span>
+          </div>
+          <div class="tab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            结构
+          </div>
+          <div class="tab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6"/><path d="M8 18l-6-6 6-6"/></svg>
+            建表 SQL
+          </div>
+        </div>
+
+        <!-- Tab content: Data view -->
+        <div class="tab-content">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>id <span class="pk-badge">PK</span></th>
+                <th>user_id</th>
+                <th>name</th>
+                <th>frequency</th>
+                <th>status</th>
+                <th>weekly_target</th>
+                <th>monthly_target</th>
+                <th>start_date</th>
+                <th>end_date</th>
+                <th>created_at</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>a1b2c3d4...</td>
+                <td>usr-001</td>
+                <td>早起打卡</td>
+                <td>每日</td>
+                <td>生效</td>
+                <td>7</td>
+                <td>30</td>
+                <td>2025-09-01</td>
+                <td>2025-09-22</td>
+                <td>2025-09-01T08:00:00</td>
+              </tr>
+              <tr>
+                <td>e5f6g7h8...</td>
+                <td>usr-001</td>
+                <td>运动健身</td>
+                <td>工作日</td>
+                <td>生效</td>
+                <td>5</td>
+                <td>22</td>
+                <td>2025-09-01</td>
+                <td class="null-val">NULL</td>
+                <td>2025-09-02T10:30:00</td>
+              </tr>
+              <tr>
+                <td>i9j0k1l2...</td>
+                <td>usr-001</td>
+                <td>阅读30分钟</td>
+                <td>每日</td>
+                <td>暂停</td>
+                <td>7</td>
+                <td>30</td>
+                <td>2025-08-15</td>
+                <td>2025-09-05</td>
+                <td>2025-08-15T20:00:00</td>
+              </tr>
+              <tr>
+                <td>m3n4o5p6...</td>
+                <td>usr-001</td>
+                <td>写周总结</td>
+                <td>每周</td>
+                <td>生效</td>
+                <td>1</td>
+                <td>4</td>
+                <td>2025-09-01</td>
+                <td class="null-val">NULL</td>
+                <td>2025-09-01T09:00:00</td>
+              </tr>
+              <tr>
+                <td>q7r8s9t0...</td>
+                <td>usr-001</td>
+                <td>冥想</td>
+                <td>每日</td>
+                <td>失效</td>
+                <td>7</td>
+                <td>30</td>
+                <td>2025-07-01</td>
+                <td>2025-07-22</td>
+                <td>2025-07-01T07:00:00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- SQL Editor (bottom panel) -->
+        <div class="resize-handle"></div>
+        <div class="sql-editor-panel">
+          <div class="editor-toolbar">
+            <div class="editor-toolbar-left">
+              <span class="label">SQL 编辑器</span>
+            </div>
+            <div class="editor-toolbar-right">
+              <button class="btn-secondary">清空</button>
+              <button class="btn-secondary">⬇ CSV</button>
+              <button class="btn-run">▶ 执行</button>
+            </div>
+          </div>
+          <textarea class="editor-textarea" placeholder="输入 SQL 查询... (⌘+Enter 执行)">SELECT * FROM habits WHERE status = '生效' ORDER BY created_at DESC;</textarea>
+        </div>
+
+        <!-- Status bar -->
+        <div class="status-bar">
+          <div class="status-left">
+            <span><span class="status-dot"></span>已连接 workbench-db</span>
+            <span>当前表: habits</span>
+            <span>8 行 × 12 列</span>
+          </div>
+          <span>只读模式</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotations -->
+  <div class="annotation">
+    <strong>交互说明：</strong><br>
+    ① <strong>左侧表列表</strong> — 单击选中高亮，右侧自动加载该表数据；支持搜索过滤<br>
+    ② <strong>顶部标签栏</strong> — 双击/回车表名打开新标签页（类 IDE），可关闭标签<br>
+    ③ <strong>子标签页</strong> — 数据（表格视图）/ 结构（字段信息）/ 建表SQL（DDL）<br>
+    ④ <strong>底部 SQL 编辑器</strong> — 可拖拽调整高度，支持 ⌘+Enter 快捷执行<br>
+    ⑤ <strong>状态栏</strong> — 显示连接状态、当前表、行数、只读标识<br>
+    ⑥ <strong>只读模式</strong> — 后端拦截写操作关键词，前端标注"只读模式"
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ===== Mock 2: 结构视图 ===== -->
+  <span class="proposal-label">子视图 — 结构</span>
+  <p class="proposal-title">表结构详情</p>
+  <p class="proposal-desc">点击「结构」标签查看字段定义、类型、约束等信息</p>
+
+  <div class="sql-client" style="height: 420px;">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <div class="db-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg></div>
+        <span>workbench-db (D1)</span>
+      </div>
+    </div>
+    <div class="main-area">
+      <div class="sidebar">
+        <div class="sidebar-header">数据表 (10)</div>
+        <div class="table-list">
+          <div class="table-item active">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            habits <span class="row-count">8</span>
+          </div>
+          <div class="table-item" style="opacity:0.5"><svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>tasks <span class="row-count">47</span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="open-tabs">
+          <div class="open-tab active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            habits <span class="close-tab">×</span>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab">数据 <span class="badge">8 行</span></div>
+          <div class="tab active">结构</div>
+          <div class="tab">建表 SQL</div>
+        </div>
+        <div class="tab-content" style="padding: 0;">
+          <table class="structure-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>字段名</th>
+                <th>类型</th>
+                <th>可空</th>
+                <th>默认值</th>
+                <th>约束</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>1</td><td><strong>id</strong> <span class="pk-badge" style="margin-left:4px">PK</span></td><td class="type">TEXT</td><td>NO</td><td class="null-val">—</td><td class="constraint">PRIMARY KEY</td></tr>
+              <tr><td>2</td><td><strong>user_id</strong></td><td class="type">TEXT</td><td>NO</td><td class="null-val">—</td><td class="constraint">FK → users(id)</td></tr>
+              <tr><td>3</td><td><strong>name</strong></td><td class="type">TEXT</td><td>NO</td><td class="null-val">—</td><td class="constraint">NOT NULL</td></tr>
+              <tr><td>4</td><td><strong>frequency</strong></td><td class="type">TEXT</td><td>NO</td><td class="string" style="color:#059669">'每日'</td><td class="constraint">CHECK IN (...)</td></tr>
+              <tr><td>5</td><td><strong>status</strong></td><td class="type">TEXT</td><td>NO</td><td class="string" style="color:#059669">'生效'</td><td class="constraint">CHECK IN ('生效','暂停','失效')</td></tr>
+              <tr><td>6</td><td><strong>weekly_target</strong></td><td class="type">INTEGER</td><td>YES</td><td class="null-val">NULL</td><td class="null-val">—</td></tr>
+              <tr><td>7</td><td><strong>monthly_target</strong></td><td class="type">INTEGER</td><td>YES</td><td class="null-val">NULL</td><td class="null-val">—</td></tr>
+              <tr><td>8</td><td><strong>start_date</strong></td><td class="type">TEXT</td><td>YES</td><td class="null-val">NULL</td><td class="null-val">—</td></tr>
+              <tr><td>9</td><td><strong>end_date</strong></td><td class="type">TEXT</td><td>YES</td><td class="null-val">NULL</td><td class="null-val">—</td></tr>
+              <tr><td>10</td><td><strong>phase</strong></td><td class="type">TEXT</td><td>YES</td><td class="null-val">NULL</td><td class="null-val">—</td></tr>
+              <tr><td>11</td><td><strong>notes</strong></td><td class="type">TEXT</td><td>YES</td><td class="null-val">NULL</td><td class="null-val">—</td></tr>
+              <tr><td>12</td><td><strong>created_at</strong></td><td class="type">TEXT</td><td>NO</td><td class="string" style="color:#059669">datetime('now')</td><td class="constraint">NOT NULL</td></tr>
+              <tr><td>13</td><td><strong>updated_at</strong></td><td class="type">TEXT</td><td>NO</td><td class="string" style="color:#059669">datetime('now')</td><td class="constraint">NOT NULL</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ===== Mock 3: 建表 SQL 视图 ===== -->
+  <span class="proposal-label">子视图 — 建表 SQL</span>
+  <p class="proposal-title">DDL 语句查看</p>
+  <p class="proposal-desc">直接展示 SQLite 的 CREATE TABLE 语句，方便复制和参考</p>
+
+  <div class="sql-client" style="height: 380px;">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <div class="db-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg></div>
+        <span>workbench-db (D1)</span>
+      </div>
+    </div>
+    <div class="main-area">
+      <div class="sidebar">
+        <div class="sidebar-header">数据表 (10)</div>
+        <div class="table-list">
+          <div class="table-item active">
+            <svg class="tbl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            habits <span class="row-count">8</span>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="open-tabs">
+          <div class="open-tab active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            habits <span class="close-tab">×</span>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab">数据 <span class="badge">8 行</span></div>
+          <div class="tab">结构</div>
+          <div class="tab active">建表 SQL</div>
+        </div>
+        <div class="tab-content">
+          <div class="sql-view"><span class="keyword">CREATE TABLE</span> habits (
+    id <span class="type">TEXT</span> <span class="keyword">PRIMARY KEY</span>,
+    user_id <span class="type">TEXT</span> <span class="keyword">NOT NULL</span>,
+    name <span class="type">TEXT</span> <span class="keyword">NOT NULL</span>,
+    frequency <span class="type">TEXT</span> <span class="keyword">NOT NULL DEFAULT</span> <span class="string">'每日'</span>,
+    status <span class="type">TEXT</span> <span class="keyword">NOT NULL DEFAULT</span> <span class="string">'生效'</span>,
+    weekly_target <span class="type">INTEGER</span>,
+    monthly_target <span class="type">INTEGER</span>,
+    start_date <span class="type">TEXT</span>,
+    end_date <span class="type">TEXT</span>,
+    phase <span class="type">TEXT</span>,
+    notes <span class="type">TEXT</span>,
+    created_at <span class="type">TEXT</span> <span class="keyword">NOT NULL DEFAULT</span> (datetime(<span class="string">'now'</span>)),
+    updated_at <span class="type">TEXT</span> <span class="keyword">NOT NULL DEFAULT</span> (datetime(<span class="string">'now'</span>)),
+    <span class="keyword">FOREIGN KEY</span> (user_id) <span class="keyword">REFERENCES</span> users(id),
+    <span class="keyword">CHECK</span> (frequency <span class="keyword">IN</span> (<span class="string">'每日'</span>,<span class="string">'工作日'</span>,<span class="string">'周末'</span>,<span class="string">'每周'</span>,<span class="string">'每月'</span>,<span class="string">'不定期'</span>)),
+    <span class="keyword">CHECK</span> (status <span class="keyword">IN</span> (<span class="string">'生效'</span>,<span class="string">'暂停'</span>,<span class="string">'失效'</span>))
+);</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

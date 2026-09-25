@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, Save, X, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Save, X, Sparkles, Check } from 'lucide-react'
+import { useConfirm, usePromptText } from './ui/ConfirmDialog'
+import { useToast } from './ui/Toast'
 
 interface WeeklySummaryEditorProps {
   summary: any
@@ -16,6 +18,9 @@ const WeeklySummaryEditor: React.FC<WeeklySummaryEditorProps> = ({
 }) => {
   const [editedData, setEditedData] = useState(JSON.parse(JSON.stringify(summary)))
   const [aiLoading, setAiLoading] = useState<string | null>(null)
+  const confirmDialog = useConfirm()
+  const promptText = usePromptText()
+  const toast = useToast()
 
   // 更新目标
   const updateGoal = (index: number, field: string, value: any) => {
@@ -67,8 +72,12 @@ const WeeklySummaryEditor: React.FC<WeeklySummaryEditorProps> = ({
   }
 
   // 添加习惯项
-  const addHabitItem = () => {
-    const habitName = prompt('请输入习惯名称：')
+  const addHabitItem = async () => {
+    const habitName = await promptText({
+      title: '添加习惯项',
+      placeholder: '请输入习惯名称',
+      confirmText: '添加',
+    })
     if (!habitName) return
     
     const newHabits = { ...editedData.habits }
@@ -90,8 +99,14 @@ const WeeklySummaryEditor: React.FC<WeeklySummaryEditorProps> = ({
   }
 
   // 删除习惯项
-  const deleteHabitItem = (habitName: string) => {
-    if (!confirm(`确定要删除习惯"${habitName}"吗？`)) return
+  const deleteHabitItem = async (habitName: string) => {
+    const ok = await confirmDialog({
+      title: '删除习惯项',
+      type: 'danger',
+      message: <>确定删除习惯「<b>{habitName}</b>」吗？</>,
+      confirmText: '删除',
+    })
+    if (!ok) return
     
     const newHabits = { ...editedData.habits }
     
@@ -138,10 +153,10 @@ const WeeklySummaryEditor: React.FC<WeeklySummaryEditorProps> = ({
     try {
       const optimized = await onAIOptimize(section, editedData[section])
       setEditedData({ ...editedData, [section]: optimized })
-      alert('AI优化完成！')
+      toast.success('AI 优化完成')
     } catch (error) {
       console.error('AI优化失败:', error)
-      alert('AI优化失败，请重试')
+      toast.error('AI 优化失败', '请重试')
     } finally {
       setAiLoading(null)
     }
@@ -295,13 +310,13 @@ const WeeklySummaryEditor: React.FC<WeeklySummaryEditorProps> = ({
                     <td key={habit} className="border border-gray-300 px-3 py-2 text-center">
                       <button
                         onClick={() => toggleHabitCheck(dateIndex, habit)}
-                        className={`w-8 h-8 rounded-lg transition-colors ${
+                        className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${
                           record.checks[habit]
                             ? 'bg-green-100 text-green-600 hover:bg-green-200'
                             : 'bg-red-100 text-red-600 hover:bg-red-200'
                         }`}
                       >
-                        {record.checks[habit] ? '✓' : '✗'}
+                        {record.checks[habit] ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
                       </button>
                     </td>
                   ))}

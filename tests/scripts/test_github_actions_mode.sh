@@ -21,7 +21,7 @@ echo ""
 echo "执行 main.py..."
 echo "----------------------------------------"
 
-cd /Users/dada/github项目/notion-task-reminder
+cd /Users/dada/Projects/workbench
 
 # 激活虚拟环境
 source venv/bin/activate

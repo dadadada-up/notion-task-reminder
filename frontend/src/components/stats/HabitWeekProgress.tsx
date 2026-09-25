@@ -1,4 +1,4 @@
-import { Target } from 'lucide-react'
+import { Target, BarChart3 } from 'lucide-react'
 import { HabitWeekStats } from '../../types'
 
 interface HabitWeekProgressProps {
@@ -12,13 +12,13 @@ export default function HabitWeekProgress({ stats, onViewHabits }: HabitWeekProg
     <div className="bg-white rounded-lg shadow-sm p-6">
       <div className="flex items-center gap-2 mb-6">
         <Target className="text-purple-600" size={24} />
-        <h2 className="text-lg font-semibold text-gray-900">🎯 本周习惯养成</h2>
+        <h2 className="text-lg font-semibold text-gray-900">本周习惯养成</h2>
       </div>
 
       {/* 本周打卡进度 */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-600">📊 本周打卡</span>
+          <span className="text-sm text-gray-600 flex items-center gap-1"><BarChart3 className="w-4 h-4" /> 本周打卡</span>
         </div>
         
         <div className="flex items-baseline gap-2 mb-3">

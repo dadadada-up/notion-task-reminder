@@ -1,22 +1,28 @@
 import { useState, useEffect } from 'react'
-import { X, Calendar, User, Flag, Tag, Clock, CheckCircle2, Link as LinkIcon, Edit, Mail, Hash, Plus, FileText } from 'lucide-react'
+import { X, Calendar, User, Flag, Tag, Clock, CheckCircle2, Edit, Mail, Hash, Plus, Trash2, Copy } from 'lucide-react'
 import { Task } from '../types'
 import { fetchTasks, updateTask } from '../api'
 import { formatDate, formatDateTime } from '../utils/dateFormat'
+import { useConfirm } from './ui/ConfirmDialog'
+import { useToast } from './ui/Toast'
 
 interface TaskDetailModalProps {
   task: Task | null
   isOpen: boolean
   onClose: () => void
   onEdit?: (task: Task) => void
+  onDelete?: (task: Task) => void
   onCreateSubTask?: (parentTask: Task) => void
+  onCopy?: (task: Task) => void
 }
 
-const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: TaskDetailModalProps) => {
+const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onDelete, onCreateSubTask, onCopy }: TaskDetailModalProps) => {
   const [childTasks, setChildTasks] = useState<Task[]>([])
   const [parentTasks, setParentTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
+  const confirmDialog = useConfirm()
+  const toast = useToast()
 
   useEffect(() => {
     if (task) {
@@ -64,9 +70,12 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
   const handleCompleteChildTask = async (childTask: Task, e: React.MouseEvent) => {
     e.stopPropagation()
 
-    if (!confirm(`确认完成子任务「${childTask.name}」？`)) {
-      return
-    }
+    const ok = await confirmDialog({
+      title: '完成子任务',
+      message: <>确认完成子任务「<b>{childTask.name}</b>」？</>,
+      confirmText: '确认完成',
+    })
+    if (!ok) return
 
     setCompletingTaskId(childTask.id)
     try {
@@ -79,19 +88,40 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
       await loadChildTasks()
     } catch (error) {
       console.error('Failed to complete child task:', error)
-      alert('完成任务失败，请重试')
+      toast.error('完成任务失败', '请重试')
     } finally {
       setCompletingTaskId(null)
     }
+  }
+
+  // 删除任务（统一确认弹窗）
+  const handleDeleteClick = async () => {
+    if (!task) return
+    const ok = await confirmDialog({
+      title: '删除任务',
+      type: 'danger',
+      message: (
+        <>
+          确定删除任务「<b>{task.name}</b>」吗？此操作不可恢复。
+          {task.child_ids && task.child_ids.length > 0 && (
+            <span className="block mt-1.5 text-amber-600">
+              该任务有 {task.child_ids.length} 个子任务，删除后子任务将变为独立任务。
+            </span>
+          )}
+        </>
+      ),
+      confirmText: '删除',
+    })
+    if (ok) onDelete?.(task)
   }
 
   if (!isOpen || !task) return null
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      '收集箱': 'bg-yellow-100 text-yellow-700',
+      '待开始': 'bg-yellow-100 text-yellow-700',
       '进行中': 'bg-blue-100 text-blue-700',
-      '暂停': 'bg-gray-100 text-gray-700',
+      '已逾期': 'bg-orange-100 text-orange-700',
       '已完成': 'bg-green-100 text-green-700',
       '已放弃': 'bg-red-100 text-red-700',
     }
@@ -125,6 +155,25 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
               )}
             </div>
             <div className="flex items-center gap-2">
+              {onCopy && (
+                <button
+                  onClick={() => onCopy(task)}
+                  className="flex items-center gap-2 px-4 py-2 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-colors"
+                  title="复制为新任务"
+                >
+                  <Copy className="w-4 h-4" />
+                  复制
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={handleDeleteClick}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  删除
+                </button>
+              )}
               {onEdit && (
                 <button
                   onClick={() => onEdit(task)}
@@ -359,33 +408,13 @@ const TaskDetailModal = ({ task, isOpen, onClose, onEdit, onCreateSubTask }: Tas
               )}
             </div>
 
-            {/* Notion链接 */}
-            <div className="pt-4 border-t border-gray-200">
-              <div className="flex flex-wrap gap-3">
-                <a
-                  href={task.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                  title="在 Notion 中打开页面，编辑长文档内容"
-                >
-                  <FileText className="w-4 h-4" />
-                  打开页面编辑文档
-                </a>
-                <a
-                  href={task.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <LinkIcon className="w-4 h-4" />
-                  在 Notion 中查看
-                </a>
+            {/* 备注信息 */}
+            {task.notes && (
+              <div className="pt-4 border-t border-gray-200">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">备注</h4>
+                <p className="text-sm text-gray-600 whitespace-pre-wrap">{task.notes}</p>
               </div>
-              <p className="text-xs text-gray-500 mt-3">
-                💡 Notion 页面支持富文本编辑、代码块、表格、嵌入内容等，适合记录详细的任务文档和笔记
-              </p>
-            </div>
+            )}
           </div>
         </div>
       </div>

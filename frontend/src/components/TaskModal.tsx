@@ -2,20 +2,27 @@ import { useState, useEffect, useRef } from 'react'
 import { X, Trash2, Upload, Loader, FileText } from 'lucide-react'
 import { Task, TaskImage } from '../types'
 import TaskSelector from './TaskSelector'
+import DatePicker from './DatePicker'
 import { uploadImage } from '../api'
+import { useConfirm } from './ui/ConfirmDialog'
+import { useToast } from './ui/Toast'
 
 interface TaskModalProps {
   task?: Task | null
   isOpen: boolean
   onClose: () => void
   onSave: (task: Partial<Task>) => Promise<void>
+  onDelete?: (task: Task) => void
   parentTask?: Task | null
+  copyTask?: Task | null
 }
 
-const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps) => {
+const TaskModal = ({ task, isOpen, onClose, onSave, onDelete, parentTask, copyTask }: TaskModalProps) => {
+  const confirmDialog = useConfirm()
+  const toast = useToast()
   const [formData, setFormData] = useState({
     name: '',
-    status: '收集箱' as Task['status'],
+    status: '待开始' as Task['status'],
     priority: 'P3 不重要不紧急',
     task_type: '个人成长',
     assignee: 'dada',
@@ -35,7 +42,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
     if (task) {
       setFormData({
         name: task.name || '',
-        status: task.status || '收集箱',
+        status: task.status || '待开始',
         priority: task.priority || 'P3 不重要不 紧急',
         task_type: task.task_type || '个人成长',
         assignee: task.assignee || 'dada',
@@ -47,11 +54,31 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         completed_time: task.completed_time,
         images: task.images || [],
       })
+    } else if (copyTask) {
+      // 复制任务：以源任务为模板预填内容，作为新任务创建
+      // - 保留：名称、类型、优先级、负责人、邮箱、备注、日期、图片
+      // - 重置：完成时间清空；已完成/已放弃/已逾期 → 进行中；清除父子/依赖关系
+      setFormData({
+        name: copyTask.name || '',
+        status: (copyTask.status === '已完成' || copyTask.status === '已放弃' || copyTask.status === '已逾期')
+          ? '进行中'
+          : (copyTask.status || '待开始'),
+        priority: copyTask.priority || 'P3 不重要不紧急',
+        task_type: copyTask.task_type || '个人成长',
+        assignee: copyTask.assignee || 'dada',
+        email: copyTask.email || (copyTask.assignee === 'dada' ? 'dadadada_up@163.com' : ''),
+        start_date: copyTask.start_date || '',
+        deadline: copyTask.deadline || '',
+        notes: copyTask.notes || '',
+        parent_ids: [],
+        completed_time: undefined,
+        images: (copyTask.images || []).map(img => ({ name: img.name, url: img.url, type: img.type })),
+      })
     } else if (parentTask) {
       // 创建子任务，继承父任务所有属性（除了任务名称）
       setFormData({
         name: '',
-        status: parentTask.status || '收集箱',
+        status: parentTask.status || '待开始',
         priority: parentTask.priority || 'P3 不重要不 紧急',
         task_type: parentTask.task_type || '个人成长',
         assignee: parentTask.assignee || 'dada',
@@ -82,7 +109,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
         images: [],
       })
     }
-  }, [task, parentTask, isOpen])
+  }, [task, parentTask, copyTask, isOpen])
 
   // 负责人变化时自动填充邮箱
   const handleAssigneeChange = (assignee: string) => {
@@ -104,7 +131,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
       onClose()
     } catch (error) {
       console.error('Failed to save task:', error)
-      alert('保存失败，请重试')
+      toast.error('保存失败', '请重试')
     } finally {
       setSaving(false)
     }
@@ -123,7 +150,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">
-              {task ? '编辑任务' : '新建任务'}
+              {task ? '编辑任务' : copyTask ? '复制任务' : '新建任务'}
             </h2>
             <div className="flex items-center gap-2">
               {task && task.url && (
@@ -132,7 +159,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                  title="在 Notion 中打开页面，编辑长文档内容"
+                  title="打开页面查看详细内容"
                 >
                   <FileText className="w-4 h-4" />
                   打开页面
@@ -148,66 +175,63 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* 任务名称 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                任务名称 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="输入任务名称"
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            {/* 基本信息区 */}
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+              {/* 任务名称 */}
+              <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                <label className="text-sm font-medium text-gray-600 text-right">
+                  名称 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  placeholder="输入任务名称"
+                />
+              </div>
 
-            {/* 第一行：状态、优先级 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  状态：
+              {/* 状态 + 优先级 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                  <label className="text-sm font-medium text-gray-600 text-right">状态</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as Task['status'] })}
-                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   >
-                    <option value="收集箱">📥 收集箱</option>
-                    <option value="暂停">⏸️ 暂停</option>
-                    <option value="已放弃">❌ 已放弃</option>
-                    <option value="进行中">🔵 进行中</option>
-                    <option value="已完成">✅ 已完成</option>
+                    <option value="待开始">待开始</option>
+                    <option value="进行中">进行中</option>
+                    <option value="已逾期">已逾期</option>
+                    <option value="已完成">已完成</option>
+                    <option value="已放弃">已放弃</option>
                   </select>
-                </label>
-              </div>
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  优先级：
+                </div>
+                <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                  <label className="text-sm font-medium text-gray-600 text-right">优先级</label>
                   <select
                     value={formData.priority}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   >
                     <option value="P0 重要紧急">P0 重要紧急</option>
                     <option value="P1 重要不紧急">P1 重要不紧急</option>
                     <option value="P2 紧急不重要">P2 紧急不重要</option>
                     <option value="P3 不重要不紧急">P3 不重要不紧急</option>
                   </select>
-                </label>
+                </div>
               </div>
-            </div>
 
-            {/* 第二行：任务类型、负责人 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  任务类型：
+              {/* 任务类型 + 负责人 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                  <label className="text-sm font-medium text-gray-600 text-right">类型</label>
                   <select
                     value={formData.task_type}
                     onChange={(e) => setFormData({ ...formData, task_type: e.target.value })}
-                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   >
                     <option value="家庭生活">家庭生活</option>
                     <option value="社交">社交</option>
@@ -217,273 +241,232 @@ const TaskModal = ({ task, isOpen, onClose, onSave, parentTask }: TaskModalProps
                     <option value="理财投资">理财投资</option>
                     <option value="保险副业">保险副业</option>
                   </select>
-                </label>
-              </div>
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  负责人：
+                </div>
+                <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                  <label className="text-sm font-medium text-gray-600 text-right">负责人</label>
                   <select
                     value={formData.assignee}
                     onChange={(e) => handleAssigneeChange(e.target.value)}
-                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   >
                     <option value="dada">dada</option>
                     <option value="panpan">panpan</option>
                   </select>
-                </label>
+                </div>
               </div>
-            </div>
 
-            {/* 第三行：邮箱 */}
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                邮箱：
+              {/* 邮箱 */}
+              <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                <label className="text-sm font-medium text-gray-600 text-right">邮箱</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                   placeholder="输入邮箱地址"
                 />
-              </label>
+              </div>
             </div>
 
-            {/* 第四行：开始日期、截止日期 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  开始日期：
-                  <input
-                    type="date"
+            {/* 时间安排区 */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                  <label className="text-sm font-medium text-gray-600 text-right">开始日期</label>
+                  <DatePicker
                     value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    onChange={(v) => setFormData({ ...formData, start_date: v })}
+                    placeholder="选择开始日期"
                   />
-                </label>
-              </div>
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  截止日期：
-                  <input
-                    type="date"
+                </div>
+                <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                  <label className="text-sm font-medium text-gray-600 text-right">截止日期</label>
+                  <DatePicker
                     value={formData.deadline}
-                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                    className="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    onChange={(v) => setFormData({ ...formData, deadline: v })}
+                    placeholder="选择截止日期"
                   />
-                </label>
+                </div>
               </div>
             </div>
 
-            {/* 关系字段 - 上级项目 */}
-            {parentTask ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  上级项目（继承自父任务）
-                </label>
+            {/* 上级项目 */}
+            <div className="grid grid-cols-[80px_1fr] items-start gap-3">
+              <label className="text-sm font-medium text-gray-600 text-right pt-2">上级项目</label>
+              <div className="flex-1">
                 <TaskSelector
                   selectedIds={formData.parent_ids}
                   onSelect={(ids) => setFormData({ ...formData, parent_ids: ids })}
                   excludeIds={task?.id ? [task.id] : []}
                   label=""
-                  placeholder="搜索上级项目..."
-                  multiple={false}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  💡 此任务是子任务，可以修改关联的上级项目
-                </p>
-              </div>
-            ) : task?.parent_ids && task.parent_ids.length > 0 ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  上级项目
-                </label>
-                <TaskSelector
-                  selectedIds={formData.parent_ids}
-                  onSelect={(ids) => setFormData({ ...formData, parent_ids: ids })}
-                  excludeIds={task?.id ? [task.id] : []}
-                  label=""
-                  placeholder="搜索上级项目..."
-                  multiple={false}
-                />
-              </div>
-            ) : (
-              <div>
-                <TaskSelector
-                  selectedIds={formData.parent_ids}
-                  onSelect={(ids) => setFormData({ ...formData, parent_ids: ids })}
-                  excludeIds={task?.id ? [task.id] : []}
-                  label="上级项目（可选）"
                   placeholder="搜索并选择上级项目..."
                   multiple={false}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  💡 选择上级项目后，此任务将成为子任务
-                </p>
               </div>
-            )}
+            </div>
 
             {/* 备注 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                备注
-              </label>
+            <div className="grid grid-cols-[80px_1fr] items-start gap-3">
+              <label className="text-sm font-medium text-gray-600 text-right pt-2">备注</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                rows={3}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm resize-none"
                 placeholder="添加备注信息..."
               />
-              {task && task.url ? (
-                <p className="text-xs text-gray-500 mt-2">
-                  💡 需要编辑长文档？点击右上角「打开页面」按钮，在 Notion 中编辑完整内容
-                </p>
-              ) : (
-                <p className="text-xs text-gray-500 mt-2">
-                  💡 创建任务后，可以在 Notion 页面中添加富文本、代码块、表格等长文档内容
-                </p>
-              )}
             </div>
 
             {/* 图片管理 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                图片 ({formData.images.length})
+            <div className="grid grid-cols-[80px_1fr] items-start gap-3">
+              <label className="text-sm font-medium text-gray-600 text-right pt-2">
+                图片 <span className="text-gray-400">({formData.images.length})</span>
               </label>
-              
-              {/* 图片列表 */}
-              {formData.images.length > 0 && (
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  {formData.images.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <a 
-                        href={image.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="block"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <img
-                          src={image.url}
-                          alt={image.name || `图片 ${index + 1}`}
-                          className="w-full h-24 object-cover rounded-lg border border-gray-200 hover:border-purple-400 transition-colors"
-                          onError={(e) => {
-                            e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f3f4f6" width="100" height="100"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3E加载失败%3C/text%3E%3C/svg%3E'
+              <div className="flex-1">
+                {/* 图片列表 */}
+                {formData.images.length > 0 && (
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {formData.images.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <a 
+                          href={image.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="block"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <img
+                            src={image.url}
+                            alt={image.name || `图片 ${index + 1}`}
+                            className="w-full h-20 object-cover rounded-lg border border-gray-200 hover:border-purple-400 transition-colors"
+                            onError={(e) => {
+                              e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f3f4f6" width="100" height="100"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3E加载失败%3C/text%3E%3C/svg%3E'
+                            }}
+                          />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newImages = formData.images.filter((_, i) => i !== index)
+                            setFormData({ ...formData, images: newImages })
                           }}
-                        />
-                      </a>
-                      {/* 删除按钮 */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newImages = formData.images.filter((_, i) => i !== index)
-                          setFormData({ ...formData, images: newImages })
-                        }}
-                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                      {image.name && (
-                        <p className="mt-1 text-xs text-gray-500 truncate" title={image.name}>
-                          {image.name}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {/* 添加图片 - 文件上传 */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={async (e) => {
-                  const files = e.target.files
-                  if (!files || files.length === 0) return
-                  
-                  setUploading(true)
-                  try {
-                    // 上传所有选中的文件
-                    const uploadPromises = Array.from(files).map(async (file) => {
-                      try {
-                        const result = await uploadImage(file)
-                        return {
-                          file_upload_id: result.file_upload_id,
-                          name: result.filename,
-                          type: 'file_upload' as const,
-                          url: '' // 占位符，实际URL由Notion生成
-                        }
-                      } catch (error) {
-                        console.error(`上传 ${file.name} 失败:`, error)
-                        alert(`上传 ${file.name} 失败，请重试`)
-                        return null
-                      }
-                    })
-                    
-                    const uploadedImages = (await Promise.all(uploadPromises)).filter(img => img !== null) as TaskImage[]
-                    
-                    if (uploadedImages.length > 0) {
-                      setFormData({
-                        ...formData,
-                        images: [...formData.images, ...uploadedImages]
-                      })
-                    }
-                  } catch (error) {
-                    console.error('上传图片失败:', error)
-                    alert('上传图片失败，请重试')
-                  } finally {
-                    setUploading(false)
-                    // 重置文件输入
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = ''
-                    }
-                  }
-                }}
-              />
-              
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-md text-gray-600 hover:border-purple-400 hover:text-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {uploading ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" />
-                    上传中...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    上传图片
-                  </>
+                          className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </button>
-              
-              <p className="text-xs text-gray-500 mt-2">
-                💡 支持直接上传图片文件（最大 20MB，支持 JPG、PNG、GIF 等格式）
-              </p>
+                
+                {/* 上传按钮 */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = e.target.files
+                    if (!files || files.length === 0) return
+                    
+                    setUploading(true)
+                    try {
+                      const uploadPromises = Array.from(files).map(async (file) => {
+                        try {
+                          const result = await uploadImage(file)
+                          return {
+                            file_upload_id: result.file_upload_id,
+                            name: result.filename,
+                            type: 'file_upload' as const,
+                            url: ''
+                          }
+                        } catch (error) {
+                          console.error(`上传 ${file.name} 失败:`, error)
+                          toast.error(`上传 ${file.name} 失败`, '请重试')
+                          return null
+                        }
+                      })
+                      
+                      const uploadedImages = (await Promise.all(uploadPromises)).filter(img => img !== null) as TaskImage[]
+                      
+                      if (uploadedImages.length > 0) {
+                        setFormData({
+                          ...formData,
+                          images: [...formData.images, ...uploadedImages]
+                        })
+                      }
+                    } catch (error) {
+                      console.error('上传图片失败:', error)
+                      toast.error('上传图片失败', '请重试')
+                    } finally {
+                      setUploading(false)
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = ''
+                      }
+                    }
+                  }}
+                />
+                
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-lg text-gray-500 hover:border-purple-400 hover:text-purple-600 focus:outline-none flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      上传中...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      点击上传图片
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? '保存中...' : '保存'}
-              </button>
+            <div className="flex justify-between gap-3 pt-4 border-t border-gray-100">
+              {task && onDelete ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await confirmDialog({
+                      title: '删除任务',
+                      type: 'danger',
+                      message: <>确定删除任务「<b>{task.name}</b>」吗？此操作不可恢复。</>,
+                      confirmText: '删除',
+                    })
+                    if (ok) onDelete(task)
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  删除任务
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-5 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {saving ? '保存中...' : '保存'}
+                </button>
+              </div>
             </div>
           </form>
         </div>

@@ -1,5 +1,5 @@
 import { HealthStats } from '../../types'
-import { AlertTriangle, Activity, Package, ArrowRight } from 'lucide-react'
+import { AlertTriangle, Activity, Package, ArrowRight, HeartPulse, CheckCircle } from 'lucide-react'
 
 interface HealthDiagnosisProps {
   stats: HealthStats
@@ -28,22 +28,20 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
     }
   }
 
-  const getHealthEmoji = (level: string) => {
-    switch (level) {
-      case 'excellent':
-        return '🟢'
-      case 'good':
-        return '🔵'
-      default:
-        return '🟠'
+  const getHealthDot = (level: string) => {
+    const colorMap: Record<string, string> = {
+      excellent: 'bg-green-500',
+      good: 'bg-blue-500',
     }
+    const color = colorMap[level] || 'bg-orange-500'
+    return <span className={`inline-block w-3 h-3 rounded-full ${color}`} />
   }
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-900 flex items-center">
-          <span className="mr-2">🏥</span>
+          <HeartPulse className="mr-2 w-6 h-6 text-red-500" />
           任务健康度诊断
         </h2>
         <div className="flex items-center">
@@ -51,7 +49,7 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
           <span className={`text-2xl font-bold ${getHealthColor(stats.overall_level)}`}>
             {stats.overall_score}
           </span>
-          <span className="text-lg ml-1">{getHealthEmoji(stats.overall_level)}</span>
+          <span className="text-lg ml-1">{getHealthDot(stats.overall_level)}</span>
         </div>
       </div>
 
@@ -64,8 +62,9 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
           </div>
 
           {stats.risks.length === 0 ? (
-            <div className="text-sm text-gray-500 text-center py-4">
-              ✅ 暂无风险
+            <div className="text-sm text-gray-500 text-center py-4 flex items-center justify-center gap-1">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              暂无风险
             </div>
           ) : (
             <div className="space-y-2">
@@ -90,10 +89,10 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
           </div>
 
           <div className="space-y-3">
-            {/* 收集箱 → 进行中 */}
+            {/* 待开始 → 进行中 */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-600">收集箱 → 进行中</span>
+                <span className="text-xs text-gray-600">待开始 → 进行中</span>
                 <span className="text-sm font-bold text-gray-900">
                   {stats.flow.inbox_to_progress_rate.toFixed(0)}%
                 </span>
@@ -133,8 +132,9 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
             {/* 瓶颈提示 */}
             {stats.flow.bottleneck && (
               <div className="bg-orange-100 border border-orange-200 rounded-lg p-2 mt-2">
-                <div className="text-xs text-orange-800">
-                  ⚠️ 瓶颈：{stats.flow.bottleneck === 'inbox' ? '收集箱堆积' : '执行缓慢'}
+              <div className="text-xs text-orange-800 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  瓶颈：{stats.flow.bottleneck === 'inbox' ? '待开始堆积' : '执行缓慢'}
                 </div>
               </div>
             )}
@@ -143,7 +143,7 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
             <div className="flex items-center justify-between text-xs text-gray-600 pt-2 border-t border-gray-200">
               <div className="text-center">
                 <div className="font-bold text-gray-900">{stats.flow.status_counts.inbox}</div>
-                <div>收集箱</div>
+                <div>待开始</div>
               </div>
               <ArrowRight className="w-4 h-4" />
               <div className="text-center">
@@ -168,7 +168,7 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">收集箱</span>
+              <span className="text-sm text-gray-600">待开始</span>
               <span className={`text-lg font-bold ${
                 stats.backlog.inbox_count > 10 ? 'text-red-600' : 
                 stats.backlog.inbox_count > 5 ? 'text-orange-600' : 'text-green-600'
@@ -192,14 +192,16 @@ const HealthDiagnosis = ({ stats }: HealthDiagnosisProps) => {
               stats.backlog.status === 'warning' ? 'bg-orange-100 border border-orange-200' :
               'bg-green-100 border border-green-200'
             }`}>
-              <div className={`text-sm font-medium ${
+              <div className={`text-sm font-medium flex items-center gap-1.5 ${
                 stats.backlog.status === 'critical' ? 'text-red-800' :
                 stats.backlog.status === 'warning' ? 'text-orange-800' :
                 'text-green-800'
               }`}>
-                {stats.backlog.status === 'critical' ? '🔴' :
-                 stats.backlog.status === 'warning' ? '🟡' : '🟢'} 
-                {' '}{stats.backlog.recommendation}
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+                  stats.backlog.status === 'critical' ? 'bg-red-500' :
+                  stats.backlog.status === 'warning' ? 'bg-yellow-500' : 'bg-green-500'
+                }`} />
+                {stats.backlog.recommendation}
               </div>
             </div>
           </div>

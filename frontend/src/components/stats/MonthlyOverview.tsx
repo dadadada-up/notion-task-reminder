@@ -51,7 +51,7 @@ const MonthlyOverview = ({ stats }: MonthlyOverviewProps) => {
       >
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900 flex items-center">
-            <span className="mr-2">📈</span>
+            <TrendingUp className="mr-2 w-6 h-6 text-blue-600" />
             月度概览
             <span className="text-sm font-normal text-gray-500 ml-2">
               ({new Date().getFullYear()}年{new Date().getMonth() + 1}月)

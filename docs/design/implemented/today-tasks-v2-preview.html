@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今日待办 · 重设计方案对比</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f3f4f6; }
+  .row-check { transition: all .15s; }
+  .row:hover .row-check { border-color: #10b981; }
+  .row.done { opacity: .55; }
+  .row.done .row-title { text-decoration: line-through; color: #9ca3af; }
+  .row.done .row-check { background: #10b981; border-color: #10b981; }
+</style>
+</head>
+<body class="py-10">
+<div class="max-w-6xl mx-auto px-6">
+
+  <h1 class="text-2xl font-bold text-gray-900 mb-1">今日待办 · 重设计方案</h1>
+  <p class="text-sm text-gray-500 mb-8">共同点：去掉"每行一个大空框"，改用分隔线清单 / 时间轴，压缩留白、建立视觉节奏。复选框可点击体验。</p>
+
+  <!-- ============ 方案 A ============ -->
+  <div class="mb-12">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-bold text-white bg-indigo-600 rounded px-2 py-0.5">方案 A</span>
+      <h2 class="text-lg font-semibold text-gray-800">紧凑分隔线清单（推荐）</h2>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">无卡片边框，行间细分隔线；标题在上、元信息在下（左对齐紧跟标题）；复选框移到<b>左侧</b>，视线起点即操作点；逾期任务整行极浅红底 + 左侧 3px 红条，其余保持干净。</p>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 max-w-2xl">
+      <div class="flex items-center justify-between mb-1">
+        <h3 class="text-base font-semibold text-gray-900">今日待办</h3>
+        <span class="text-xs text-gray-400">待处理 <b class="text-gray-600">7</b> · <a class="text-indigo-600 font-medium">管理全部 →</a></span>
+      </div>
+      <div class="text-[11px] text-gray-400 mb-3">🎯 建议先做：研究一下服务器的问题（已逾期 7 天）</div>
+
+      <div id="listA" class="divide-y divide-gray-100 -mx-2">
+        <!-- rows injected by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 方案 B ============ -->
+  <div class="mb-12">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-bold text-white bg-violet-600 rounded px-2 py-0.5">方案 B</span>
+      <h2 class="text-lg font-semibold text-gray-800"> urgency 分组清单</h2>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">按紧迫度分三段（<span class="text-red-600 font-medium">已逾期 2</span> / <span class="text-amber-600 font-medium">72 小时内 1</span> / <span class="text-gray-500 font-medium">稍后 4</span>），段头带计数；行内单行排版，右侧只保留一个日期；逾期段行底浅红。信息层次最清晰，一眼知道"先干什么"。</p>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 max-w-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-semibold text-gray-900">今日待办</h3>
+        <span class="text-xs text-gray-400">待处理 <b class="text-gray-600">7</b> · <a class="text-indigo-600 font-medium">管理全部 →</a></span>
+      </div>
+
+      <!-- 已逾期 -->
+      <div class="text-[11px] font-bold text-red-600 mb-1 flex items-center gap-1.5">
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+        已逾期 · 2
+      </div>
+      <div class="space-y-1 mb-4">
+        <div class="flex items-center gap-3 bg-red-50 rounded-lg pl-3 pr-2 py-2 border-l-[3px] border-red-500">
+          <div class="flex-1 min-w-0 text-[13.5px] font-medium text-gray-900 truncate">研究一下服务器的问题</div>
+          <span class="text-[11px] font-semibold text-red-600 whitespace-nowrap">逾期 7 天</span>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></button>
+        </div>
+        <div class="flex items-center gap-3 bg-red-50 rounded-lg pl-3 pr-2 py-2 border-l-[3px] border-red-500">
+          <div class="flex-1 min-w-0 text-[13.5px] font-medium text-gray-900 truncate">买机票</div>
+          <span class="text-[11px] font-semibold text-red-600 whitespace-nowrap">逾期 2 天</span>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></button>
+        </div>
+      </div>
+
+      <!-- 72小时内 -->
+      <div class="text-[11px] font-bold text-amber-600 mb-1 flex items-center gap-1.5">
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+        72 小时内 · 1
+      </div>
+      <div class="space-y-1 mb-4">
+        <div class="flex items-center gap-3 rounded-lg pl-3 pr-2 py-2 border-l-[3px] border-amber-400">
+          <div class="flex-1 min-w-0 text-[13.5px] font-medium text-gray-900 truncate">股票交易学习</div>
+          <span class="text-[11px] font-medium text-gray-500 whitespace-nowrap">今天</span>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></button>
+        </div>
+      </div>
+
+      <!-- 稍后 -->
+      <div class="text-[11px] font-bold text-gray-400 mb-1 flex items-center gap-1.5">
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/></svg>
+        稍后 · 4
+      </div>
+      <div class="space-y-1">
+        <div class="flex items-center gap-3 rounded-lg pl-3 pr-2 py-2 border-l-[3px] border-gray-200">
+          <div class="flex-1 min-w-0 text-[13.5px] font-medium text-gray-700 truncate">个人代理自动化项目调研</div>
+          <span class="text-[11px] text-gray-400 whitespace-nowrap">9/30</span>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></button>
+        </div>
+        <div class="flex items-center gap-3 rounded-lg pl-3 pr-2 py-2 border-l-[3px] border-gray-200">
+          <div class="flex-1 min-w-0 text-[13.5px] font-medium text-gray-700 truncate">车险手续费需求PRD</div>
+          <span class="text-[11px] text-gray-400 whitespace-nowrap">10/15</span>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></button>
+        </div>
+        <div class="flex items-center gap-3 rounded-lg pl-3 pr-2 py-2 border-l-[3px] border-gray-200">
+          <div class="flex-1 min-w-0 text-[13.5px] font-medium text-gray-700 truncate">买车分析和研究</div>
+          <span class="text-[11px] text-gray-400 whitespace-nowrap">10/31</span>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></button>
+        </div>
+        <div class="flex items-center gap-3 rounded-lg pl-3 pr-2 py-2 border-l-[3px] border-gray-200">
+          <div class="flex-1 min-w-0 text-[13.5px] font-medium text-gray-700 truncate">消保评价立项</div>
+          <span class="text-[11px] text-gray-400 whitespace-nowrap">11/30</span>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 flex-shrink-0"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 方案 C ============ -->
+  <div class="mb-12">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-bold text-white bg-emerald-600 rounded px-2 py-0.5">方案 C</span>
+      <h2 class="text-lg font-semibold text-gray-800">左侧时间轴清单</h2>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">左轨 56px 专放"相对时间"（逾期 7 天 / 今天 / 9/30），大字号强对比；标题独占一行更醒目；优先级降级为小色点。时间压力成为主角，适合 deadline 驱动的工作方式。</p>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 max-w-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-5 pt-5 pb-3">
+        <h3 class="text-base font-semibold text-gray-900">今日待办</h3>
+        <span class="text-xs text-gray-400">待处理 <b class="text-gray-600">7</b> · <a class="text-indigo-600 font-medium">管理全部 →</a></span>
+      </div>
+      <div class="divide-y divide-gray-100">
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-red-50/40 transition-colors">
+          <div class="w-[56px] flex-shrink-0 flex flex-col items-start justify-center">
+            <span class="text-[13px] font-bold text-red-600 leading-tight">逾期</span>
+            <span class="text-[11px] text-red-400">7 天</span>
+          </div>
+          <div class="border-l-2 border-red-400 flex-shrink-0 self-stretch rounded" style="margin:2px 0"></div>
+          <div class="flex-1 min-w-0 py-1">
+            <div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900 truncate">研究一下服务器的问题</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded flex-shrink-0">P1</span></div>
+            <div class="text-[11px] text-gray-400 mt-0.5">个人成长</div>
+          </div>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 self-center flex-shrink-0"></button>
+        </div>
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-red-50/40 transition-colors">
+          <div class="w-[56px] flex-shrink-0 flex flex-col items-start justify-center">
+            <span class="text-[13px] font-bold text-red-600 leading-tight">逾期</span>
+            <span class="text-[11px] text-red-400">2 天</span>
+          </div>
+          <div class="border-l-2 border-red-400 flex-shrink-0 self-stretch rounded" style="margin:2px 0"></div>
+          <div class="flex-1 min-w-0 py-1">
+            <div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900 truncate">买机票</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded flex-shrink-0">P1</span></div>
+            <div class="text-[11px] text-gray-400 mt-0.5">家庭生活</div>
+          </div>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 self-center flex-shrink-0"></button>
+        </div>
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-indigo-50/40 transition-colors">
+          <div class="w-[56px] flex-shrink-0 flex flex-col items-start justify-center">
+            <span class="text-[13px] font-bold text-indigo-600 leading-tight">今天</span>
+            <span class="text-[11px] text-indigo-400">9/25</span>
+          </div>
+          <div class="border-l-2 border-indigo-400 flex-shrink-0 self-stretch rounded" style="margin:2px 0"></div>
+          <div class="flex-1 min-w-0 py-1">
+            <div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-900 truncate">股票交易学习</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded flex-shrink-0">P1</span></div>
+            <div class="text-[11px] text-gray-400 mt-0.5">个人成长</div>
+          </div>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 self-center flex-shrink-0"></button>
+        </div>
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
+          <div class="w-[56px] flex-shrink-0 flex flex-col items-start justify-center">
+            <span class="text-[13px] font-bold text-gray-600 leading-tight">9/30</span>
+            <span class="text-[11px] text-gray-400">5 天后</span>
+          </div>
+          <div class="border-l-2 border-gray-200 flex-shrink-0 self-stretch rounded" style="margin:2px 0"></div>
+          <div class="flex-1 min-w-0 py-1">
+            <div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-800 truncate">个人代理自动化项目调研</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded flex-shrink-0">P1</span></div>
+            <div class="text-[11px] text-gray-400 mt-0.5">工作</div>
+          </div>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 self-center flex-shrink-0"></button>
+        </div>
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
+          <div class="w-[56px] flex-shrink-0 flex flex-col items-start justify-center">
+            <span class="text-[13px] font-bold text-gray-600 leading-tight">10/15</span>
+            <span class="text-[11px] text-gray-400">20 天后</span>
+          </div>
+          <div class="border-l-2 border-gray-200 flex-shrink-0 self-stretch rounded" style="margin:2px 0"></div>
+          <div class="flex-1 min-w-0 py-1">
+            <div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-800 truncate">车险手续费需求PRD</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded flex-shrink-0">P1</span></div>
+            <div class="text-[11px] text-gray-400 mt-0.5">工作</div>
+          </div>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 self-center flex-shrink-0"></button>
+        </div>
+        <div class="flex items-stretch gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
+          <div class="w-[56px] flex-shrink-0 flex flex-col items-start justify-center">
+            <span class="text-[13px] font-bold text-gray-600 leading-tight">11/30</span>
+            <span class="text-[11px] text-gray-400">66 天后</span>
+          </div>
+          <div class="border-l-2 border-gray-200 flex-shrink-0 self-stretch rounded" style="margin:2px 0"></div>
+          <div class="flex-1 min-w-0 py-1">
+            <div class="flex items-center gap-2"><span class="text-[13.5px] font-semibold text-gray-800 truncate">消保评价立项</span><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded flex-shrink-0">P1</span></div>
+            <div class="text-[11px] text-gray-400 mt-0.5">工作</div>
+          </div>
+          <button class="row-check w-5 h-5 rounded-md border-2 border-gray-300 self-center flex-shrink-0"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-400">* 三个方案均保留：✓ 快捷完成（乐观更新 + 彩带）、点击打开详情、"管理全部"跳转。选中后落地到 React 组件。</p>
+</div>
+
+<script>
+const tasks = [
+  { name: '研究一下服务器的问题', pri: 'P1', due: '2026年9月18日', meta: '逾期 7 天 · 个人成长', overdue: true },
+  { name: '买机票', pri: 'P1', due: '2026年9月23日', meta: '逾期 2 天 · 家庭生活', overdue: true },
+  { name: '股票交易学习', pri: 'P1', due: '2026年9月25日', meta: '今天 · 个人成长', overdue: false },
+  { name: '个人代理自动化项目调研', pri: 'P1', due: '2026年9月30日', meta: '9/30 · 工作', overdue: false },
+  { name: '车险手续费需求PRD', pri: 'P1', due: '2026年10月15日', meta: '10/15 · 工作', overdue: false },
+  { name: '买车分析和研究', pri: 'P1', due: '2026年10月31日', meta: '10/31 · 家庭生活', overdue: false },
+  { name: '消保评价立项', pri: 'P1', due: '2026年11月30日', meta: '11/30 · 工作', overdue: false },
+]
+const list = document.getElementById('listA')
+tasks.forEach(t => {
+  const row = document.createElement('div')
+  row.className = 'row flex items-start gap-3 py-2.5 px-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer' + (t.overdue ? ' !bg-red-50/60' : '')
+  row.innerHTML = `
+    <button class="row-check mt-0.5 w-5 h-5 rounded-full border-2 ${t.overdue ? 'border-red-300' : 'border-gray-300'} flex-shrink-0 flex items-center justify-center text-white">
+      <svg class="w-3 h-3 check-icon hidden" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    </button>
+    <div class="flex-1 min-w-0">
+      <div class="row-title text-[13.5px] font-medium text-gray-900 truncate">${t.name}</div>
+      <div class="flex items-center gap-2 mt-0.5 text-[11px]">
+        <span class="font-bold text-indigo-500">${t.pri}</span>
+        <span class="${t.overdue ? 'text-red-500 font-medium' : 'text-gray-400'}">${t.meta}</span>
+      </div>
+    </div>
+    <span class="text-[11px] text-gray-300 flex-shrink-0 mt-1 hover:text-indigo-400 arrow opacity-0 transition-opacity">打开 →</span>`
+  row.querySelector('.row-check').addEventListener('click', e => {
+    e.stopPropagation()
+    row.classList.toggle('done')
+    row.querySelector('.check-icon').classList.toggle('hidden')
+    row.querySelector('.row-check').classList.toggle('!bg-green-500')
+    row.querySelector('.row-check').classList.toggle('!border-green-500')
+  })
+  row.addEventListener('mouseenter', () => row.querySelector('.arrow').classList.remove('opacity-0'))
+  row.addEventListener('mouseleave', () => row.querySelector('.arrow').classList.add('opacity-0'))
+  list.appendChild(row)
+})
+</script>
+</body>
+</html>

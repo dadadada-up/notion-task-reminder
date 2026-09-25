@@ -53,3 +53,52 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* Slide-in animation for documentation panel */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out;
+}
+
+/* ===== ConfirmDialog & Toast animations ===== */
+@keyframes overlay-in {
+  from { opacity: 0; }
+}
+@keyframes overlay-out {
+  to { opacity: 0; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.9) translateY(16px); }
+}
+@keyframes dialog-out {
+  to { opacity: 0; transform: scale(0.95) translateY(8px); }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-18px) scale(0.95); }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(-12px) scale(0.96); }
+}
+@keyframes toast-bar {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.animate-overlay-in { animation: overlay-in 0.22s ease both; }
+.animate-overlay-out { animation: overlay-out 0.17s ease both; }
+.animate-dialog-in { animation: dialog-in 0.34s cubic-bezier(0.22, 1.18, 0.36, 1) both; }
+.animate-dialog-out { animation: dialog-out 0.17s ease both; }
+.animate-toast-in { animation: toast-in 0.4s cubic-bezier(0.22, 1.2, 0.36, 1) both; }
+.animate-toast-out { animation: toast-out 0.22s ease both; }
+/* 时长需与 Toast.tsx 中 TOAST_DURATION 保持一致 */
+.animate-toast-bar { animation: toast-bar 3.8s linear both; }

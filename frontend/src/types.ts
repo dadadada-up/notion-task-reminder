@@ -9,7 +9,7 @@ export interface TaskImage {
 export interface Task {
   id: string
   name: string
-  status: '收集箱' | '暂停' | '已放弃' | '进行中' | '已完成'
+  status: '待开始' | '进行中' | '已完成' | '已放弃' | '已逾期'
   assignee: string
   priority: string
   task_type: string
@@ -35,7 +35,7 @@ export interface Habit {
   id: string
   name: string
   frequency: '每日' | '每周' | '每月' | '工作日' | '周末' | '不定期'
-  status: '生效' | '失效'
+  status: '生效' | '暂停' | '失效'
   weekly_target?: number
   monthly_target?: number
   start_date?: string
@@ -181,7 +181,7 @@ export interface Risk {
 
 // 流动效率
 export interface FlowMetrics {
-  inbox_to_progress_rate: number   // 收集箱→进行中转化率
+  inbox_to_progress_rate: number   // 待开始→进行中转化率
   progress_to_done_rate: number    // 进行中→完成转化率
   bottleneck: 'inbox' | 'progress' | null  // 瓶颈
   status_counts: {
@@ -260,4 +260,122 @@ export interface Highlight {
 export interface Reflections {
   suggestions: string[]
   concerns: string[]
+}
+
+// ===== API 响应包装 =====
+
+export interface ApiResponse<T> {
+  success: boolean
+  data: T
+  error?: string
+  count?: number
+  message?: string
+}
+
+// ===== 通知中心 =====
+
+export interface ChannelStatus {
+  enabled: boolean
+  status: 'configured' | 'unconfigured' | 'disabled' | 'error'
+  has_token?: boolean
+  smtp_server?: string
+  smtp_port?: string
+  sender?: string
+  receiver?: string
+  password?: string
+}
+
+export interface NotificationCenterStatus {
+  channels: {
+    pushplus: ChannelStatus
+    email: ChannelStatus
+    dingtalk: ChannelStatus
+  }
+  schedules: ScheduleItem[]
+  github_sync: {
+    synced: boolean
+    repository: string
+  }
+}
+
+export interface ScheduleItem {
+  id: string
+  key?: string
+  type: 'daily_todo' | 'daily_done'
+  time: string
+  enabled: boolean
+  channels?: string[]
+  customTitle?: string
+  customMessage?: string
+}
+
+// ===== 用户 =====
+
+export interface User {
+  id: string
+  username: string
+  displayName: string
+  role: 'owner' | 'editor' | 'viewer'
+}
+
+export interface AuthResponse {
+  token: string
+  user: User
+}
+
+// ===== DB 管理 =====
+
+export interface DbTable {
+  name: string
+  row_count: number
+}
+
+export interface DbQueryResult {
+  rows: Record<string, unknown>[]
+  columns: string[]
+  row_count: number
+  elapsed_ms: number
+}
+
+// ===== 配置管理（ConfigSettings 使用） =====
+
+export interface AppConfig {
+  push: {
+    pushplusToken: string
+    wxpusherToken: string
+    wxpusherUid: string
+  }
+  email: {
+    enabled: boolean
+    smtpServer: string
+    smtpPort: string
+    sender: string
+    receiver: string
+    password: string
+  }
+  github: {
+    token: string
+    repository: string
+  }
+  schedule: {
+    enabled: boolean
+    timezone: string
+  }
+}
+
+// ===== 周总结新格式 =====
+
+export interface NewFormatSummary {
+  week_start: string
+  week_end: string
+  sections: Record<string, unknown>
+}
+
+// ===== 自动流转 =====
+
+export interface AutoTransitionResult {
+  total_checked: number
+  transitioned: number
+  tasks: Array<{ id: string; name: string; start_date: string; priority: string }>
+  timestamp: string
 }

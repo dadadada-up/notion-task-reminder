@@ -2,6 +2,38 @@
  * 日期格式化工具函数
  */
 
+/** 将 Date 或 ISO 字符串转为北京时间的 YYYY-MM-DD（不含时间部分） */
+const toBeijingParts = (input: Date | string): string => {
+  const date = input instanceof Date ? input : new Date(input)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const y = parts.find(p => p.type === 'year')?.value || ''
+  const m = parts.find(p => p.type === 'month')?.value || ''
+  const d = parts.find(p => p.type === 'day')?.value || ''
+  return `${y}-${m}-${d}`
+}
+
+/**
+ * 获取北京时间的今天：YYYY-MM-DD
+ * 修复：不要用 new Date().setHours(0,0,0,0).toISOString()，在东八区会退成昨天
+ */
+export const getTodayStr = (): string => toBeijingParts(new Date())
+
+/**
+ * 将任意 ISO 时间字符串（如 completed_time）转为北京时间的 YYYY-MM-DD，用于按天比较
+ */
+export const toBeijingDateStr = (iso: string | null | undefined): string => {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return ''
+  return toBeijingParts(date)
+}
+
+
 /**
  * 格式化日期为中文格式：2025年11月28日
  * @param dateString ISO日期字符串或日期字符串

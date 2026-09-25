@@ -1,5 +1,5 @@
 import { WeeklyStats } from '../../types'
-import { Target, TrendingUp, TrendingDown } from 'lucide-react'
+import { Target, TrendingUp, TrendingDown, Calendar, BarChart3 } from 'lucide-react'
 
 interface WeeklyProgressProps {
   stats: WeeklyStats
@@ -12,7 +12,7 @@ const WeeklyProgress = ({ stats, onViewWeekTasks }: WeeklyProgressProps) => {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-        <span className="mr-2">📅</span>
+        <Calendar className="mr-2 w-6 h-6 text-indigo-600" />
         本周进展
       </h2>
 
@@ -82,7 +82,8 @@ const WeeklyProgress = ({ stats, onViewWeekTasks }: WeeklyProgressProps) => {
         {/* 每日完成趋势 */}
         <div>
           <div className="flex items-center mb-3">
-            <span className="text-sm font-medium text-gray-700">📊 完成趋势</span>
+            <BarChart3 className="w-4 h-4 text-gray-700 mr-1" />
+            <span className="text-sm font-medium text-gray-700">完成趋势</span>
           </div>
 
           <div className="space-y-2">

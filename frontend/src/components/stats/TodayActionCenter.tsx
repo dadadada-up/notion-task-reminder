@@ -1,5 +1,5 @@
 import { TodayStats, HabitTodayStats } from '../../types'
-import { Flame, AlertTriangle, CheckCircle, Target } from 'lucide-react'
+import { Flame, AlertTriangle, CheckCircle, Target, Lightbulb } from 'lucide-react'
 
 interface TodayActionCenterProps {
   taskStats: TodayStats
@@ -14,7 +14,7 @@ const TodayActionCenter = ({ taskStats, habitStats, onViewP0Tasks, onViewP1Tasks
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-        <span className="mr-2">🎯</span>
+        <Target className="mr-2 w-6 h-6 text-purple-600" />
         今日行动中心
       </h2>
       
@@ -25,7 +25,7 @@ const TodayActionCenter = ({ taskStats, habitStats, onViewP0Tasks, onViewP1Tasks
           onClick={onViewP0Tasks}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-red-700">🔥 P0 紧急</span>
+            <span className="text-sm font-medium text-red-700">P0 紧急</span>
             <Flame className="w-5 h-5 text-red-600" />
           </div>
           <div className="text-3xl font-bold text-red-900">{taskStats.p0_urgent}</div>
@@ -38,7 +38,7 @@ const TodayActionCenter = ({ taskStats, habitStats, onViewP0Tasks, onViewP1Tasks
           onClick={onViewP1Tasks}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-orange-700">⚠️ P1 重要</span>
+            <span className="text-sm font-medium text-orange-700">P1 重要</span>
             <AlertTriangle className="w-5 h-5 text-orange-600" />
           </div>
           <div className="text-3xl font-bold text-orange-900">{taskStats.p1_important}</div>
@@ -52,7 +52,7 @@ const TodayActionCenter = ({ taskStats, habitStats, onViewP0Tasks, onViewP1Tasks
             onClick={onViewHabits}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-blue-700">🎯 今日打卡</span>
+              <span className="text-sm font-medium text-blue-700">今日打卡</span>
               <Target className="w-5 h-5 text-blue-600" />
             </div>
             <div className="flex items-baseline">
@@ -68,7 +68,7 @@ const TodayActionCenter = ({ taskStats, habitStats, onViewP0Tasks, onViewP1Tasks
         {/* 今日完成 */}
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-green-700">✅ 已完成</span>
+            <span className="text-sm font-medium text-green-700">已完成</span>
             <CheckCircle className="w-5 h-5 text-green-600" />
           </div>
           <div className="flex items-baseline">
@@ -90,7 +90,7 @@ const TodayActionCenter = ({ taskStats, habitStats, onViewP0Tasks, onViewP1Tasks
       {/* 智能建议 */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-start">
-          <span className="text-blue-600 mr-2 mt-0.5">💡</span>
+          <Lightbulb className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <div className="text-sm font-medium text-blue-900 mb-1">今日建议</div>
             <div className="text-sm text-blue-700">{taskStats.suggestion}</div>

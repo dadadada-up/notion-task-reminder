@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { X, Send } from 'lucide-react'
+import { X, Send, ClipboardList, CheckCircle, BarChart3, Smartphone, Mail, Lightbulb, MessageSquare } from 'lucide-react'
 import { sendNotification } from '../api'
+import { useToast } from './ui/Toast'
 
 interface NotificationModalProps {
   isOpen: boolean
@@ -13,6 +14,7 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
   const [customTitle, setCustomTitle] = useState('')
   const [customMessage, setCustomMessage] = useState('')
   const [sending, setSending] = useState(false)
+  const toast = useToast()
 
   if (!isOpen) return null
 
@@ -26,22 +28,22 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
 
   const handleSend = async () => {
     if (channels.length === 0) {
-      alert('请至少选择一个推送渠道')
+      toast.warning('请至少选择一个推送渠道')
       return
     }
 
     setSending(true)
     try {
       const result = await sendNotification(type, channels, customTitle, customMessage)
-      
+
       if (result.success) {
-        alert('通知发送成功！')
+        toast.success('通知发送成功')
         onClose()
       } else {
-        alert(`发送失败: ${result.error || '未知错误'}`)
+        toast.error('发送失败', result.error || '未知错误')
       }
     } catch (error: any) {
-      alert(`发送失败: ${error.message || error}`)
+      toast.error('发送失败', error.message || String(error))
     } finally {
       setSending(false)
     }
@@ -79,7 +81,7 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
                   className="w-4 h-4 text-blue-600"
                 />
                 <span className="ml-3">
-                  <span className="font-medium text-gray-900">📋 今日待办</span>
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5"><ClipboardList className="w-4 h-4 text-blue-600" /> 今日待办</span>
                   <span className="text-sm text-gray-500 ml-2">发送今天需要处理的任务</span>
                 </span>
               </label>
@@ -94,7 +96,7 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
                   className="w-4 h-4 text-blue-600"
                 />
                 <span className="ml-3">
-                  <span className="font-medium text-gray-900">✅ 今日完成</span>
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-green-600" /> 今日完成</span>
                   <span className="text-sm text-gray-500 ml-2">发送今天已完成的任务</span>
                 </span>
               </label>
@@ -109,7 +111,7 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
                   className="w-4 h-4 text-blue-600"
                 />
                 <span className="ml-3">
-                  <span className="font-medium text-gray-900">📊 全部发送</span>
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-purple-600" /> 全部发送</span>
                   <span className="text-sm text-gray-500 ml-2">同时发送待办和完成任务</span>
                 </span>
               </label>
@@ -129,7 +131,17 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
                   onChange={() => handleChannelToggle('pushplus')}
                   className="w-4 h-4 text-blue-600 rounded"
                 />
-                <span className="ml-3 font-medium text-gray-900">📱 PushPlus</span>
+                <span className="ml-3 font-medium text-gray-900 flex items-center gap-1.5"><Smartphone className="w-4 h-4 text-blue-600" /> PushPlus</span>
+              </label>
+              
+              <label className="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={channels.includes('dingtalk')}
+                  onChange={() => handleChannelToggle('dingtalk')}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span className="ml-3 font-medium text-gray-900 flex items-center gap-1.5"><MessageSquare className="w-4 h-4 text-blue-500" /> 钉钉机器人</span>
               </label>
               
               <label className="flex items-center p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
@@ -139,7 +151,7 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
                   onChange={() => handleChannelToggle('email')}
                   className="w-4 h-4 text-blue-600 rounded"
                 />
-                <span className="ml-3 font-medium text-gray-900">📧 邮箱</span>
+                <span className="ml-3 font-medium text-gray-900 flex items-center gap-1.5"><Mail className="w-4 h-4 text-purple-600" /> 邮箱</span>
               </label>
             </div>
           </div>
@@ -170,8 +182,9 @@ const NotificationModal = ({ isOpen, onClose }: NotificationModalProps) => {
               rows={4}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
-            <p className="mt-2 text-sm text-gray-500">
-              💡 提示：可以使用 HTML 标签来格式化消息，例如 &lt;p&gt;、&lt;strong&gt;、&lt;br&gt; 等
+            <p className="mt-2 text-sm text-gray-500 flex items-center gap-1">
+              <Lightbulb className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              提示：可以使用 HTML 标签来格式化消息，例如 &lt;p&gt;、&lt;strong&gt;、&lt;br&gt; 等
             </p>
           </div>
         </div>

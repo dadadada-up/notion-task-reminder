@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { X, Clock, Save, Plus, Trash2 } from 'lucide-react'
+import { X, Clock, Save, Plus, Trash2, Lightbulb } from 'lucide-react'
 import { getSchedules, saveSchedules } from '../api'
+import { useToast } from './ui/Toast'
 
 interface ScheduleItem {
   id: string
@@ -9,7 +10,7 @@ interface ScheduleItem {
   enabled: boolean
   title?: string
   message?: string
-  channels?: ('pushplus' | 'email')[]
+  channels?: string[]
   customMessage?: string  // 保留向后兼容
 }
 
@@ -19,6 +20,7 @@ interface ScheduleSettingsProps {
 }
 
 const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
+  const toast = useToast()
   const [schedules, setSchedules] = useState<ScheduleItem[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -105,14 +107,14 @@ const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
       const result = await saveSchedules(schedules)
       
       if (result.success) {
-        alert('✅ 定时任务配置已保存！\n\nGitHub Actions workflow 已自动更新，定时任务将按配置运行。')
+        toast.success('定时任务配置已保存', 'GitHub Actions workflow 已自动更新，定时任务将按配置运行')
         onClose()
       } else {
-        alert('保存失败：' + result.error)
+        toast.error('保存失败', result.error || '未知错误')
       }
     } catch (error) {
       console.error('Failed to save schedules:', error)
-      alert('保存失败：' + error)
+      toast.error('保存失败', String(error))
     } finally {
       setSaving(false)
     }
@@ -121,7 +123,7 @@ const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
   if (!isOpen) return null
 
   const getTypeLabel = (type: string) => {
-    return type === 'daily_todo' ? '📋 今日待办' : '✅ 今日完成'
+    return type === 'daily_todo' ? '今日待办' : '今日完成'
   }
 
   return (
@@ -189,8 +191,8 @@ const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                             disabled={!schedule.enabled}
                           >
-                            <option value="daily_todo">📋 今日待办</option>
-                            <option value="daily_done">✅ 今日完成</option>
+                            <option value="daily_todo">今日待办</option>
+                            <option value="daily_done">今日完成</option>
                           </select>
                         </div>
                         <div>
@@ -259,7 +261,7 @@ const ScheduleSettings = ({ isOpen, onClose }: ScheduleSettingsProps) => {
 
               {/* 说明 */}
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">💡 使用说明</h4>
+                <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center gap-1"><Lightbulb className="w-4 h-4 text-blue-600" /> 使用说明</h4>
                 <ul className="text-sm text-blue-800 space-y-1">
                   <li>• <strong>今日待办</strong>：发送当天需要处理的任务列表</li>
                   <li>• <strong>今日完成</strong>：发送当天已完成的任务统计</li>

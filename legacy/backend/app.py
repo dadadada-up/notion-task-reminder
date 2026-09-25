@@ -537,144 +537,31 @@ def auto_transition_tasks():
 @app.route('/api/notify', methods=['POST'])
 def send_notification():
     """
-    发送通知
-    Body: {
-        "type": "daily_todo" | "daily_done" | "both",
-        "channels": ["pushplus", "email"],
-        "customTitle": "自定义标题",
-        "customMessage": "自定义消息（HTML）"
-    }
+    @deprecated 使用 /api/notification-center/send 替代
+    保留向后兼容（GitHub Actions workflow 可能直接调用此端点）
     """
-    try:
-        data = request.get_json()
-        notification_type = data.get('type', 'daily_todo')
-        channels = data.get('channels', ['pushplus'])
-        custom_title = data.get('customTitle', '')
-        custom_message = data.get('customMessage', '')
-        
-        print(f"\n[API /notify] 收到请求:")
-        print(f"  类型: {notification_type}")
-        print(f"  渠道: {channels}")
-        print(f"  自定义标题: {custom_title}")
-        
-        results = {}
-        
-        # 处理发送类型
-        types_to_send = []
-        if notification_type == 'both':
-            types_to_send = ['daily_todo', 'daily_done']
-        else:
-            types_to_send = [notification_type]
-        
-        # 发送每种类型的通知
-        for ntype in types_to_send:
-            is_done = ntype == 'daily_done'
-            print(f"\n[API /notify] 处理类型: {ntype} (is_done={is_done})")
-            
-            tasks = notion_service.get_tasks_for_notification(is_done)
-            print(f"[API /notify] 获取到 {len(tasks)} 个任务")
-            
-            # 使用自定义标题或默认标题
-            title = custom_title if custom_title else ('今日完成任务' if is_done else '今日待办任务')
-            
-            # 发送 PushPlus 通知
-            if 'pushplus' in channels:
-                print(f"[API /notify] 发送 PushPlus 通知...")
-                push_result = push_service.send_notification(
-                    tasks, is_done, title, custom_message
-                )
-                print(f"[API /notify] PushPlus 结果: {push_result}")
-                results[f'pushplus_{ntype}'] = push_result
-            
-            # 发送邮件通知
-            if 'email' in channels:
-                print(f"[API /notify] 发送邮件通知...")
-                email_result = email_service.send_notification(
-                    tasks, is_done, title, custom_message
-                )
-                print(f"[API /notify] 邮件结果: {email_result}")
-                results[f'email_{ntype}'] = email_result
-        
-        return jsonify({
-            'success': True,
-            'data': results
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+    return nc_send()
 
 @app.route('/api/schedule', methods=['GET', 'POST'])
 def manage_schedule():
     """
-    管理定时任务配置
-    GET: 获取当前配置
-    POST: 保存新配置
+    @deprecated 使用 /api/notification-center/schedules 替代
     """
-    try:
-        if request.method == 'GET':
-            # 获取配置
-            schedules = schedule_service.get_schedules()
-            return jsonify({
-                'success': True,
-                'data': schedules
-            })
-        else:
-            # 保存配置
-            data = request.get_json()
-            schedules = data.get('schedules', [])
-            
-            # 1. 保存到本地
-            result = schedule_service.save_schedules(schedules)
-            
-            if not result.get('success'):
-                return jsonify(result), 500
-            
-            # 2. 更新 GitHub Actions workflow
-            try:
-                github_updated = github_service.update_workflow(schedules)
-                
-                if github_updated:
-                    return jsonify({
-                        'success': True,
-                        'message': 'Schedule saved and GitHub Actions updated successfully'
-                    })
-                else:
-                    return jsonify({
-                        'success': True,
-                        'warning': 'Schedule saved but GitHub Actions update failed (check GitHub token)'
-                    })
-            except Exception as e:
-                # 即使 GitHub 更新失败，本地配置也已保存
-                return jsonify({
-                    'success': True,
-                    'warning': f'Schedule saved but GitHub update failed: {str(e)}'
-                })
-                
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+    return nc_manage_schedules()
 
 @app.route('/api/config', methods=['GET', 'PUT'])
 def manage_config():
     """
-    管理系统配置
-    GET: 获取当前配置（脱敏）
-    PUT: 更新配置
+    @deprecated 使用 /api/notification-center/status 和 /api/notification-center/config 替代
     """
     try:
         if request.method == 'GET':
-            # 获取配置（脱敏）
             config = config_service.get_config()
             return jsonify({
                 'success': True,
                 'data': config
             })
         else:
-            # 更新配置
             data = request.get_json()
             success = config_service.update_config(data)
             
@@ -693,6 +580,298 @@ def manage_config():
             'success': False,
             'error': str(e)
         }), 500
+
+# ==================== Notification Center Routes (Unified) ====================
+
+@app.route('/api/notification-center/status', methods=['GET'])
+def nc_status():
+    """
+    聚合状态：渠道配置 + 定时任务 + GitHub 同步状态
+    面板打开时一次请求获取全部数据
+    """
+    try:
+        # 1. 渠道配置（脱敏）
+        config = config_service.get_config()
+        
+        # 2. 构建渠道状态 + 脱敏配置值（供表单回显）
+        channels = {}
+        
+        # PushPlus
+        push_conf = config.get('push', {})
+        has_pushplus = push_conf.get('hasPushplus', False)
+        channels['pushplus'] = {
+            'enabled': has_pushplus,
+            'status': 'configured' if has_pushplus else 'unconfigured',
+            'has_token': has_pushplus,
+            # 脱敏配置值（供表单回显）
+            'pushplus_token': push_conf.get('pushplusToken', ''),
+            'wxpusher_token': push_conf.get('wxpusherToken', ''),
+            'wxpusher_uid': push_conf.get('wxpusherUid', '')
+        }
+        
+        # Email
+        email_conf = config.get('email', {})
+        email_enabled = email_conf.get('enabled', False)
+        email_configured = email_conf.get('isConfigured', False)
+        channels['email'] = {
+            'enabled': email_enabled,
+            'status': 'configured' if email_configured else ('disabled' if not email_enabled else 'unconfigured'),
+            # 脱敏配置值（供表单回显）
+            'smtp_server': email_conf.get('smtpServer', ''),
+            'smtp_port': email_conf.get('smtpPort', '587'),
+            'sender': email_conf.get('sender', ''),
+            'receiver': email_conf.get('receiver', ''),
+            'password': email_conf.get('password', '')  # 已脱敏为 ***
+        }
+        
+        # DingTalk (预留)
+        channels['dingtalk'] = {
+            'enabled': False,
+            'status': 'unconfigured'
+        }
+        
+        # 3. 定时任务
+        schedules = schedule_service.get_schedules()
+        
+        # 4. GitHub 配置状态
+        github_conf = config.get('github', {})
+        github_sync = {
+            'synced': github_conf.get('isConfigured', False),
+            'repository': github_conf.get('repository', '')
+        }
+        
+        # 5. 返回完整脱敏配置（供表单初始化）
+        form_config = {
+            'push': {
+                'pushplusToken': push_conf.get('pushplusToken', ''),
+                'wxpusherToken': push_conf.get('wxpusherToken', ''),
+                'wxpusherUid': push_conf.get('wxpusherUid', '')
+            },
+            'email': {
+                'enabled': email_enabled,
+                'smtpServer': email_conf.get('smtpServer', ''),
+                'smtpPort': email_conf.get('smtpPort', '587'),
+                'sender': email_conf.get('sender', ''),
+                'receiver': email_conf.get('receiver', ''),
+                'password': email_conf.get('password', '')
+            },
+            'github': {
+                'token': github_conf.get('token', ''),
+                'repository': github_conf.get('repository', '')
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'channels': channels,
+                'schedules': schedules,
+                'github_sync': github_sync,
+                'config': form_config  # 供表单回显的脱敏配置
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/notification-center/config', methods=['PUT'])
+def nc_update_config():
+    """
+    更新渠道配置
+    Body: { "push": {...}, "email": {...}, ... }
+    """
+    try:
+        data = request.get_json()
+        success = config_service.update_config(data)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '渠道配置已保存。部分更改可能需要重启服务器生效。'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '配置保存失败'
+            }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/notification-center/schedules', methods=['GET', 'POST'])
+def nc_manage_schedules():
+    """
+    管理定时任务
+    GET: 获取定时任务列表
+    POST: 保存定时任务列表
+    """
+    try:
+        if request.method == 'GET':
+            schedules = schedule_service.get_schedules()
+            return jsonify({
+                'success': True,
+                'data': schedules
+            })
+        else:
+            data = request.get_json()
+            schedules = data.get('schedules', [])
+            
+            # 保存到本地
+            result = schedule_service.save_schedules(schedules)
+            if not result.get('success'):
+                return jsonify(result), 500
+            
+            # 同步 GitHub Actions
+            try:
+                github_updated = github_service.update_workflow(schedules)
+                if github_updated:
+                    return jsonify({
+                        'success': True,
+                        'message': '定时任务已保存，GitHub Actions 已同步更新',
+                        'github_synced': True
+                    })
+                else:
+                    return jsonify({
+                        'success': True,
+                        'warning': '定时任务已保存，但 GitHub Actions 同步失败（请检查 GitHub Token）',
+                        'github_synced': False
+                    })
+            except Exception as e:
+                return jsonify({
+                    'success': True,
+                    'warning': f'定时任务已保存，但 GitHub 同步失败: {str(e)}',
+                    'github_synced': False
+                })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/notification-center/send', methods=['POST'])
+def nc_send():
+    """
+    手动发送通知（统一入口）
+    Body: {
+        "type": "daily_todo" | "daily_done" | "both",
+        "channels": ["pushplus", "email"],
+        "customTitle": "自定义标题",
+        "customMessage": "自定义消息（HTML）"
+    }
+    """
+    try:
+        data = request.get_json()
+        notification_type = data.get('type', 'daily_todo')
+        channels = data.get('channels', ['pushplus'])
+        custom_title = data.get('customTitle', '')
+        custom_message = data.get('customMessage', '')
+        
+        print(f"\n[NC /send] 收到请求:")
+        print(f"  类型: {notification_type}")
+        print(f"  渠道: {channels}")
+        
+        results = {}
+        
+        # 处理发送类型
+        types_to_send = []
+        if notification_type == 'both':
+            types_to_send = ['daily_todo', 'daily_done']
+        else:
+            types_to_send = [notification_type]
+        
+        for ntype in types_to_send:
+            is_done = ntype == 'daily_done'
+            tasks = notion_service.get_tasks_for_notification(is_done)
+            print(f"[NC /send] 类型 {ntype}: {len(tasks)} 个任务")
+            
+            title = custom_title if custom_title else ('今日完成任务' if is_done else '今日待办任务')
+            
+            if 'pushplus' in channels:
+                push_result = push_service.send_notification(tasks, is_done, title, custom_message)
+                results[f'pushplus_{ntype}'] = push_result
+            
+            if 'email' in channels:
+                email_result = email_service.send_notification(tasks, is_done, title, custom_message)
+                results[f'email_{ntype}'] = email_result
+        
+        return jsonify({
+            'success': True,
+            'data': results
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/notification-center/test', methods=['POST'])
+def nc_test_channel():
+    """
+    测试渠道连通性
+    Body: { "channel": "pushplus" | "email", "message": "测试消息" }
+    """
+    try:
+        data = request.get_json()
+        channel = data.get('channel', '')
+        message = data.get('message', '这是一条测试消息 ✅')
+        
+        print(f"[NC /test] 测试渠道: {channel}")
+        
+        if channel == 'pushplus':
+            result = push_service.send_notification(
+                [], False, '🔔 渠道测试', 
+                f'<p>{message}</p><p style="color:#999;font-size:12px;">这是一条测试消息，如果您收到此消息，说明 PushPlus 渠道配置正确。</p>'
+            )
+            return jsonify({
+                'success': result.get('success', False),
+                'data': {
+                    'channel': 'pushplus',
+                    'result': result
+                }
+            })
+        
+        elif channel == 'email':
+            result = email_service.send_notification(
+                [], False, '🔔 渠道测试',
+                f'<p>{message}</p><p style="color:#999;font-size:12px;">这是一条测试消息，如果您收到此邮件，说明邮箱渠道配置正确。</p>'
+            )
+            return jsonify({
+                'success': result.get('success', False),
+                'data': {
+                    'channel': 'email',
+                    'result': result
+                }
+            })
+        
+        elif channel == 'dingtalk':
+            return jsonify({
+                'success': False,
+                'data': {
+                    'channel': 'dingtalk',
+                    'result': { 'error': '钉钉渠道暂未实现' }
+                }
+            })
+        
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'未知渠道: {channel}'
+            }), 400
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 # ==================== Frontend Routes ====================
 

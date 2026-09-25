@@ -1,0 +1,17 @@
+name = "workbench"
+compatibility_date = "2025-07-18"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+# D1 Database binding for Pages Functions
+[[d1_databases]]
+binding = "DB"
+database_name = "workbench-db"
+database_id = "d640406e-02c9-4dca-8873-4790f2198865"
+
+# Non-sensitive vars
+[vars]
+APP_NAME = "Personal Workbench"
+ALLOWED_ORIGIN = "*"
+# DINGTALK_WEBHOOK 已迁移到 Cloudflare Secret，不再硬编码
+# 设置方式: cd frontend && npx wrangler pages secret put DINGTALK_WEBHOOK --project-name workbench

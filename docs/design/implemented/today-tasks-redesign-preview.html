@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今日待办 · 快捷复选框与布局优化方案</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Helvetica Neue',sans-serif;background:#f5f5f5;color:#111827;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:48px 28px 110px}
+
+/* ===== 页头 ===== */
+.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:34px}
+.hero h1{font-size:27px;font-weight:700;letter-spacing:-.02em}
+.hero .sub{color:#6b7280;font-size:14px;margin-top:9px;line-height:1.75;max-width:680px}
+.hero .sub b{color:#374151;font-weight:600}
+.badge{font-size:12px;font-weight:600;color:#7c3aed;background:#f3eeff;border:1px solid #e4d9fb;padding:6px 14px;border-radius:999px;white-space:nowrap}
+
+/* ===== 区块 ===== */
+.sec{background:#fff;border:1px solid #e8e8ec;border-radius:16px;padding:28px;margin-bottom:22px}
+.sec h2{font-size:17px;font-weight:700;display:flex;align-items:center;gap:9px;letter-spacing:-.01em}
+.sec h2 .no{min-width:22px;height:22px;padding:0 6px;border-radius:7px;background:#7c3aed;color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.sec h2 .no.gray{background:#9ca3af}
+.sec h2 .rec{font-size:11px;font-weight:600;color:#059669;background:#d1fae5;padding:3px 9px;border-radius:999px}
+.sec .lead{font-size:13px;color:#6b7280;margin-top:8px;line-height:1.7}
+.twocol{display:grid;grid-template-columns:1.35fr 1fr;gap:26px;align-items:start;margin-top:20px}
+
+/* ===== 要点列表 ===== */
+.points{font-size:13px;line-height:1.8;color:#4b5563}
+.points li{margin-bottom:10px;list-style:none;padding-left:22px;position:relative}
+.points li::before{content:'';position:absolute;left:2px;top:8px;width:12px;height:7px;border-left:2px solid #10b981;border-bottom:2px solid #10b981;transform:rotate(-45deg)}
+.points li.warn::before{content:'✕';border:none;left:0;top:0;color:#ef4444;font-weight:700;transform:none}
+.points b{color:#111827;font-weight:600}
+.note-card{background:#faf9ff;border:1px solid #ece7fa;border-radius:12px;padding:14px 16px;font-size:12.5px;color:#6b7280;line-height:1.75;margin-top:16px}
+.note-card b{color:#374151}
+
+/* ===== 通用小组件 ===== */
+.chip{font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap;display:inline-block}
+.st-run{background:#dbeafe;color:#1d4ed8}.st-wait{background:#fef9c3;color:#a16207}.st-over{background:#ffedd5;color:#c2410c}
+.pri{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap;display:inline-block;flex-shrink:0}
+.p0{background:#fee2e2;color:#b91c1c}.p1{background:#ede9fe;color:#6d28d9}.p2{background:#fef3c7;color:#b45309}.p3{background:#f3f4f6;color:#6b7280}
+.type{font-size:10px;color:#9ca3af;background:#f9fafb;border:1px solid #f3f4f6;padding:2px 7px;border-radius:5px;flex-shrink:0}
+
+/* ===== 复选框（可交互） ===== */
+.cbx{width:20px;height:20px;border-radius:7px;border:2px solid #d1d5db;background:#fff;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:all .18s;position:relative}
+.cbx::after{content:'';width:5px;height:9px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) scale(0);transition:transform .18s;margin-top:-2px}
+.cbx:hover{border-color:#10b981;background:#f0fdf4}
+.cbx.done{border-color:#10b981;background:#10b981}
+.cbx.done::after{transform:rotate(45deg) scale(1)}
+.cbx.done:hover::before{content:'撤销';position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;font-size:9px;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.row-done .tname{color:#9ca3af;text-decoration:line-through}
+.row-done .row-meta{opacity:.45}
+.hint{font-size:11.5px;color:#7c3aed;background:#f6f3ff;border:1px dashed #ddd0f5;border-radius:8px;padding:7px 12px;margin-bottom:14px;display:inline-flex;align-items:center;gap:6px}
+.hint .dot{width:7px;height:7px;border-radius:50%;background:#7c3aed;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ===== 方案卡片容器（模拟真实页面灰底） ===== */
+.mock{background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:18px}
+
+/* ===== 现状 ===== */
+.cur-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px}
+.cur-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.cur-head h4{font-size:14px;font-weight:600;display:flex;gap:8px;align-items:center}
+.cur-item{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #f3f4f6;border-radius:8px;margin-bottom:8px;background:#fff}
+.cur-item.over{border-color:#fecaca;background:#fef2f266}
+.cur-item .mid{flex:1;min-width:0}
+.cur-item .tname{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cur-item .row-meta{display:flex;gap:8px;align-items:center;margin-top:3px}
+
+/* ===== 方案 A ===== */
+.a-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px}
+.a-head{display:flex;justify-content:space-between;align-items:center}
+.a-head h4{font-size:14px;font-weight:600;display:flex;gap:8px;align-items:center}
+.a-head .cnt{font-size:11px;color:#6b7280}
+.a-prog{margin-top:12px}
+.a-prog .track{height:5px;background:#f3f4f6;border-radius:99px;overflow:hidden}
+.a-prog .track i{display:block;height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:99px;transition:width .3s;width:0}
+.a-prog .lbl{font-size:10.5px;color:#9ca3af;margin-top:5px;display:flex;justify-content:space-between}
+.a-group{font-size:10.5px;font-weight:700;color:#9ca3af;letter-spacing:.08em;margin:14px 2px 4px;display:flex;align-items:center;gap:6px}
+.a-group .n{font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:99px;background:#f3f4f6;color:#6b7280}
+.a-group.warn{color:#dc2626}.a-group.warn .n{background:#fee2e2;color:#dc2626}
+.a-row{display:flex;align-items:center;gap:11px;padding:9px 8px;border-bottom:1px solid #f5f5f7;border-radius:6px;transition:background .15s}
+.a-row:hover{background:#faf8ff}
+.a-row:last-child{border-bottom:none}
+.a-bar{width:3px;height:26px;border-radius:99px;flex-shrink:0}
+.a-bar.b0{background:#ef4444}.a-bar.b1{background:#8b5cf6}.a-bar.b2{background:#f59e0b}.a-bar.b3{background:#d1d5db}
+.a-row .mid{flex:1;min-width:0}
+.a-row .tname{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s}
+.a-row .row-meta{display:flex;align-items:center;gap:8px;margin-top:2px;font-size:11px;color:#9ca3af}
+.a-dd-red{color:#dc2626;font-weight:600}.a-dd-amber{color:#d97706;font-weight:600}
+.a-open{font-size:11px;color:#7c3aed;background:#f3eeff;border:1px solid #e4d9fb;padding:3px 10px;border-radius:6px;opacity:0;transition:opacity .15s;flex-shrink:0}
+.a-row:hover .a-open{opacity:1}
+.a-donepool .a-row{order:99}
+.a-empty{display:flex;align-items:center;gap:10px;padding:9px 8px;border-top:1px dashed #ececf0;margin-top:6px}
+.a-empty .tname{font-size:12px;color:#9ca3af}
+
+/* ===== 方案 B ===== */
+.b-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.b-col h5{font-size:11.5px;font-weight:700;padding:6px 10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.b-col.urgent h5{background:#fef2f2;color:#b91c1c}
+.b-col.plan h5{background:#eef2ff;color:#4338ca}
+.b-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:11px 12px;margin-bottom:8px}
+.b-item.over{border-color:#fecaca;background:#fff5f5}
+.b-item .cb-wrap{margin-top:1px}
+.b-item .mid{flex:1;min-width:0}
+.b-item .tname{font-size:12.5px;font-weight:500;line-height:1.4}
+.b-item .row-meta{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;align-items:center}
+
+/* ===== 方案 C ===== */
+.c-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.c-stat{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px}
+.c-stat .v{font-size:20px;font-weight:700}
+.c-stat .k{font-size:10.5px;color:#9ca3af;margin-top:2px}
+.c-stat .v.red{color:#dc2626}.c-stat .v.blue{color:#2563eb}.c-stat .v.green{color:#059669}.c-stat .v.amber{color:#d97706}
+.c-main{display:grid;grid-template-columns:10fr 6fr;gap:14px;margin-bottom:14px}
+.c-col{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px}
+.c-col h4{font-size:13.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.c-habit{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #f5f5f7;font-size:12.5px}
+.c-habit:last-child{border-bottom:none}
+.c-habit .hname{flex:1;color:#374151;font-weight:500}
+.c-habit .dots{display:flex;gap:4px}
+.c-habit .dots i{width:16px;height:16px;border-radius:5px;font-style:normal;font-size:8.5px;display:flex;align-items:center;justify-content:center;background:#f3f4f6;color:#d1d5db}
+.c-habit .dots i.on{background:#10b981;color:#fff}
+.c-habit .dots i.today{outline:2px solid #7c3aed;outline-offset:1px}
+.c-habit .rate{font-size:10.5px;color:#9ca3af;width:30px;text-align:right}
+.c-links{display:flex;gap:10px;flex-wrap:wrap}
+.c-link{font-size:11.5px;color:#4b5563;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:7px 14px;display:flex;gap:6px;align-items:center}
+
+/* ===== 对比表 ===== */
+.cmp{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:16px}
+.cmp th{text-align:left;padding:9px 12px;background:#faf9ff;color:#6d28d9;font-weight:600;border-bottom:2px solid #e9e4f8}
+.cmp td{padding:9px 12px;border-bottom:1px solid #f1f1f4;color:#4b5563;vertical-align:top;line-height:1.6}
+.cmp td b{color:#111827}
+.cmp .lv{font-weight:700;text-align:center;width:70px}
+.lv.h{color:#059669}.lv.m{color:#d97706}.lv.l{color:#9ca3af}
+
+@media (max-width:860px){.twocol{grid-template-columns:1fr}.c-main{grid-template-columns:1fr}.b-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <h1>今日待办 · 快捷复选框 &amp; 布局优化</h1>
+      <div class="sub">为 dashboard「今日待办」列表增加<b>点击即完成的快捷复选框</b>（乐观更新 + 失败回滚 + Toast 反馈，复用 TaskGallery 已有的完成任务链路），并给出三个布局优化方案。<br>页面中<b>所有复选框都可以点击试试</b> —— 勾选后任务划线沉底、进度条实时更新、可悬停撤销。</div>
+    </div>
+    <span class="badge">可视化方案对比</span>
+  </div>
+
+  <!-- ===== 现状 ===== -->
+  <div class="sec">
+    <h2><span class="no gray">0</span>现状快照（问题诊断）</h2>
+    <div class="twocol">
+      <div class="mock cur-card">
+        <div class="cur-head">
+          <h4>📅 今日待办</h4>
+          <div><span style="font-size:11px;color:#dc2626;font-weight:500">⚠ 2 个逾期</span>&nbsp;&nbsp;<span style="font-size:11px;color:#6b7280">6 个待处理</span></div>
+        </div>
+        <div class="cur-item over"><span class="pri p0">P0</span><div class="mid"><div class="tname">车险手续费 PRD 评审</div><div class="row-meta"><span class="chip st-over">已逾期</span><span style="font-size:11px;color:#dc2626">截止 09-18</span></div></div><span class="type">工作</span></div>
+        <div class="cur-item"><span class="pri p0">P0</span><div class="mid"><div class="tname">Q4 目标规划定稿</div><div class="row-meta"><span class="chip st-run">进行中</span><span style="font-size:11px;color:#dc2626;font-weight:500">截止 09-25（今天）</span></div></div><span class="type">工作</span></div>
+        <div class="cur-item over"><span class="pri p1">P1</span><div class="mid"><div class="tname">工作台移动端适配</div><div class="row-meta"><span class="chip st-over">已逾期</span><span style="font-size:11px;color:#dc2626">截止 09-20</span></div></div><span class="type">开发</span></div>
+        <div class="cur-item"><span class="pri p1">P1</span><div class="mid"><div class="tname">周总结 KISS 复盘</div><div class="row-meta"><span class="chip st-run">进行中</span><span style="font-size:11px;color:#9ca3af">截止 09-28</span></div></div><span class="type">个人</span></div>
+        <div class="cur-item"><span class="pri p2">P2</span><div class="mid"><div class="tname">整理 Notion 迁移数据</div><div class="row-meta"><span class="chip st-wait">待开始</span><span style="font-size:11px;color:#9ca3af">截止 10-01</span></div></div><span class="type">杂事</span></div>
+        <div class="cur-item"><span class="pri p3">P3</span><div class="mid"><div class="tname">阅读《系统架构》第 3 章</div><div class="row-meta"><span class="chip st-wait">待开始</span><span style="font-size:11px;color:#9ca3af">截止 10-05</span></div></div><span class="type">学习</span></div>
+      </div>
+      <div>
+        <ul class="points">
+          <li class="warn"><b>无快捷完成入口</b> —— 必须点开详情弹窗改状态，日常高频操作路径太长</li>
+          <li class="warn">每条任务都是一张<b>边框卡片</b>，6 条就占满一屏，信息密度低</li>
+          <li class="warn">逾期 / 今天到期 / 远期任务<b>混排</b>，只靠红边框区分，重点不突出</li>
+          <li class="warn">整行是 button，悬停没有任何<b>操作位</b>，右侧信息全是"死"的</li>
+        </ul>
+        <div class="note-card">💡 三个方案均包含同一套<b>快捷复选框交互</b>：勾选 → 乐观更新（划线+沉底+进度条） → 接口失败自动回滚并弹 Toast；已完成任务当日仍可见，可悬停撤销。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 方案 A ===== -->
+  <div class="sec">
+    <h2><span class="no">A</span>紧凑清单式 <span class="rec">推荐</span></h2>
+    <div class="lead">去卡片化：单行清单 + 时间压力分段 + 顶部完成进度条。同屏可见任务数从 6 → 12+，改动仅涉及 TodayTasks.tsx。</div>
+    <div class="twocol">
+      <div class="mock">
+        <div class="hint"><span class="dot"></span>试试点击左侧复选框 —— 任务会划线沉底，进度条实时更新</div>
+        <div class="a-card">
+          <div class="a-head">
+            <h4>📅 今日待办</h4>
+            <div class="cnt">待处理 <b class="a-remain">6</b> · 已完成 <b class="a-done">0</b></div>
+          </div>
+          <div class="a-prog">
+            <div class="track"><i class="a-bar-fill"></i></div>
+            <div class="lbl"><span class="a-prog-txt">今日完成进度 0 / 6</span><span>0%</span></div>
+          </div>
+
+          <div class="a-group warn">⚠ 已逾期 <span class="n">2</span></div>
+          <div class="a-rows">
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b0"></span><div class="mid"><div class="tname">车险手续费 PRD 评审</div><div class="row-meta"><span class="chip st-over">已逾期</span><span class="a-dd-red">截止 09-18 · 逾期 7 天</span></div></div><span class="type">工作</span><span class="a-open">打开 ↗</span></div>
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b1"></span><div class="mid"><div class="tname">工作台移动端适配</div><div class="row-meta"><span class="chip st-over">已逾期</span><span class="a-dd-red">截止 09-20 · 逾期 5 天</span></div></div><span class="type">开发</span><span class="a-open">打开 ↗</span></div>
+          </div>
+
+          <div class="a-group">⏰ 今天到期 <span class="n">1</span></div>
+          <div class="a-rows">
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b0"></span><div class="mid"><div class="tname">Q4 目标规划定稿</div><div class="row-meta"><span class="chip st-run">进行中</span><span class="a-dd-amber">截止今天 18:00</span></div></div><span class="type">工作</span><span class="a-open">打开 ↗</span></div>
+          </div>
+
+          <div class="a-group">📆 进行中 / 待开始 <span class="n">3</span></div>
+          <div class="a-rows">
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b1"></span><div class="mid"><div class="tname">周总结 KISS 复盘</div><div class="row-meta"><span class="chip st-run">进行中</span><span>截止 09-28</span></div></div><span class="type">个人</span><span class="a-open">打开 ↗</span></div>
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b2"></span><div class="mid"><div class="tname">整理 Notion 迁移数据</div><div class="row-meta"><span class="chip st-wait">待开始</span><span>截止 10-01</span></div></div><span class="type">杂事</span><span class="a-open">打开 ↗</span></div>
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b3"></span><div class="mid"><div class="tname">阅读《系统架构》第 3 章</div><div class="row-meta"><span class="chip st-wait">待开始</span><span>截止 10-05</span></div></div><span class="type">学习</span><span class="a-open">打开 ↗</span></div>
+          </div>
+
+          <div class="a-empty"><button class="cbx" aria-label="完成"></button><span class="a-bar b1" style="opacity:.4"></span><div class="mid"><div class="tname" style="text-decoration:line-through">晨间跑步 3km</div><div class="row-meta" style="font-size:10.5px;color:#9ca3af">✓ 今天 07:12 完成 · 悬停可撤销</div></div></div>
+        </div>
+      </div>
+      <div>
+        <ul class="points">
+          <li><b>快捷复选框</b>：乐观更新 + 失败回滚，完成后原地划线、当日留在"已完成"折叠区</li>
+          <li><b>时间压力分段</b>：逾期 → 今天到期 → 其他，今日重点一眼锁定</li>
+          <li><b>完成进度条</b>：与 StatsOverview 今日完成数联动，勾一个涨一格</li>
+          <li><b>优先级色条</b>替代 P0/P1 文字徽章（悬停显全称），行高从 60px 压到 44px</li>
+          <li>悬停行尾浮现<b>"打开"</b>按钮，替代整行 button，语义更清晰</li>
+          <li>改动<b>最小</b>：只动 TodayTasks.tsx 一个组件</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 方案 B ===== -->
+  <div class="sec">
+    <h2><span class="no">B</span>时间压力分栏式</h2>
+    <div class="lead">模块内部左右两列：紧急处理（逾期+P0）vs 今日计划（其余），保留卡片基因但缩小。</div>
+    <div class="twocol">
+      <div class="mock">
+        <div class="hint"><span class="dot"></span>复选框同样可点击交互</div>
+        <div class="a-card">
+          <div class="a-head" style="margin-bottom:14px">
+            <h4>📅 今日待办</h4>
+            <div class="cnt">共 5 项</div>
+          </div>
+          <div class="b-grid">
+            <div class="b-col urgent">
+              <h5>🔥 紧急处理 <span>2</span></h5>
+              <div class="b-item over"><span class="cb-wrap"><button class="cbx" aria-label="完成"></button></span><div class="mid"><div class="tname">车险手续费 PRD 评审</div><div class="row-meta"><span class="pri p0">P0</span><span class="a-dd-red" style="font-size:10.5px">逾期 7 天</span></div></div></div>
+              <div class="b-item over"><span class="cb-wrap"><button class="cbx" aria-label="完成"></button></span><div class="mid"><div class="tname">工作台移动端适配</div><div class="row-meta"><span class="pri p1">P1</span><span class="a-dd-red" style="font-size:10.5px">逾期 5 天</span></div></div></div>
+              <div class="b-item"><span class="cb-wrap"><button class="cbx" aria-label="完成"></button></span><div class="mid"><div class="tname">Q4 目标规划定稿</div><div class="row-meta"><span class="pri p0">P0</span><span class="a-dd-amber" style="font-size:10.5px">今天 18:00</span></div></div></div>
+            </div>
+            <div class="b-col plan">
+              <h5>🗓 今日计划 <span>3</span></h5>
+              <div class="b-item"><span class="cb-wrap"><button class="cbx" aria-label="完成"></button></span><div class="mid"><div class="tname">周总结 KISS 复盘</div><div class="row-meta"><span class="pri p1">P1</span><span style="font-size:10.5px;color:#9ca3af">09-28</span></div></div></div>
+              <div class="b-item"><span class="cb-wrap"><button class="cbx" aria-label="完成"></button></span><div class="mid"><div class="tname">整理 Notion 迁移数据</div><div class="row-meta"><span class="pri p2">P2</span><span style="font-size:10.5px;color:#9ca3af">10-01</span></div></div></div>
+              <div class="b-item"><span class="cb-wrap"><button class="cbx" aria-label="完成"></button></span><div class="mid"><div class="tname">阅读《系统架构》第 3 章</div><div class="row-meta"><span class="pri p3">P3</span><span style="font-size:10.5px;color:#9ca3af">10-05</span></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <ul class="points">
+          <li><b>重点分区</b>：紧急列永远置顶，压力可视化</li>
+          <li>保留卡片形态，与现有视觉风格<b>差异最小</b>，用户零学习成本</li>
+          <li class="warn">窄屏（&lt;1280px）下左右两列拥挤，需降级为上下堆叠</li>
+          <li class="warn">任务数少或两列数量悬殊（如紧急 1 / 计划 7）时<b>失衡显空</b></li>
+          <li class="warn">纵向空间利用率不如方案 A</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 方案 C ===== -->
+  <div class="sec">
+    <h2><span class="no">C</span>整页 Dashboard 重排</h2>
+    <div class="lead">在方案 A 基础上重组整个页面：统计与快捷链接合并为一行，今日待办(10格) + 本周习惯(6格) 同高对齐，一屏看全。</div>
+    <div class="mock" style="margin-top:20px">
+      <div class="hint"><span class="dot"></span>待办列复选框可交互；习惯打卡格子示意"自动补齐占位"消除空白</div>
+      <div class="c-stats">
+        <div class="c-stat"><div class="v blue">12</div><div class="k">进行中</div></div>
+        <div class="c-stat"><div class="v red">2</div><div class="k">已逾期</div></div>
+        <div class="c-stat"><div class="v green" id="c-done-num">3</div><div class="k">今日已完成</div></div>
+        <div class="c-stat"><div class="v amber">86%</div><div class="k">本周习惯达成</div></div>
+      </div>
+      <div class="c-main">
+        <div class="c-col">
+          <div class="a-head">
+            <h4 style="font-size:13.5px;font-weight:600">📅 今日待办</h4>
+            <div class="cnt">待处理 <b class="a-remain">5</b> · 已完成 <b class="a-done">0</b></div>
+          </div>
+          <div class="a-prog"><div class="track"><i class="a-bar-fill"></i></div><div class="lbl"><span class="a-prog-txt">今日完成进度 0 / 5</span><span>0%</span></div></div>
+          <div class="a-group warn">⚠ 已逾期 <span class="n">2</span></div>
+          <div class="a-rows">
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b0"></span><div class="mid"><div class="tname">车险手续费 PRD 评审</div><div class="row-meta"><span class="chip st-over">已逾期</span><span class="a-dd-red">截止 09-18 · 逾期 7 天</span></div></div><span class="a-open">打开 ↗</span></div>
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b1"></span><div class="mid"><div class="tname">工作台移动端适配</div><div class="row-meta"><span class="chip st-over">已逾期</span><span class="a-dd-red">截止 09-20 · 逾期 5 天</span></div></div><span class="a-open">打开 ↗</span></div>
+          </div>
+          <div class="a-group">⏰ 今天到期 <span class="n">1</span></div>
+          <div class="a-rows">
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b0"></span><div class="mid"><div class="tname">Q4 目标规划定稿</div><div class="row-meta"><span class="chip st-run">进行中</span><span class="a-dd-amber">截止今天 18:00</span></div></div><span class="a-open">打开 ↗</span></div>
+          </div>
+          <div class="a-group">📆 进行中 / 待开始 <span class="n">2</span></div>
+          <div class="a-rows">
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b1"></span><div class="mid"><div class="tname">周总结 KISS 复盘</div><div class="row-meta"><span class="chip st-run">进行中</span><span>截止 09-28</span></div></div><span class="a-open">打开 ↗</span></div>
+            <div class="a-row"><button class="cbx" aria-label="完成"></button><span class="a-bar b2"></span><div class="mid"><div class="tname">整理 Notion 迁移数据</div><div class="row-meta"><span class="chip st-wait">待开始</span><span>截止 10-01</span></div></div><span class="a-open">打开 ↗</span></div>
+          </div>
+        </div>
+        <div class="c-col">
+          <h4>🎯 本周习惯 <span style="font-size:10.5px;color:#9ca3af;font-weight:400">9/22 ~ 9/28</span></h4>
+          <div class="c-habit"><span class="hname">晨间跑步</span><div class="dots"><i class="on">一</i><i class="on">二</i><i class="on">三</i><i class="on">四</i><i class="today on">五</i><i class="today">六</i><i class="today">日</i></div><span class="rate">100%</span></div>
+          <div class="c-habit"><span class="hname">英语单词</span><div class="dots"><i class="on">一</i><i class="on">二</i><i>三</i><i class="on">四</i><i class="today on">五</i><i class="today">六</i><i class="today">日</i></div><span class="rate">80%</span></div>
+          <div class="c-habit"><span class="hname">阅读 30min</span><div class="dots"><i class="on">一</i><i>二</i><i class="on">三</i><i>四</i><i class="today">五</i><i class="today">六</i><i class="today">日</i></div><span class="rate">60%</span></div>
+          <div class="c-habit" style="opacity:.45"><span class="hname">记账</span><div class="dots"><i>一</i><i>二</i><i>三</i><i>四</i><i class="today">五</i><i class="today">六</i><i class="today">日</i></div><span class="rate">—</span></div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #ececf0;font-size:11px;color:#9ca3af;line-height:1.7">习惯不足 4 条时自动补占位行，与左侧待办列表<b>等高对齐</b>，消除大面积空白</div>
+        </div>
+      </div>
+      <div class="c-links">
+        <span class="c-link">📝 周总结</span><span class="c-link">📊 统计</span><span class="c-link">🔔 通知中心</span><span class="c-link">⚙️ 配置</span><span class="c-link">＋ 新任务</span>
+      </div>
+    </div>
+    <div class="note-card" style="margin-top:16px">⚠️ 改动范围最大：涉及 <b>DashboardPage / TodayTasks / WeekHabits / QuickLinks / StatsOverview</b> 五个组件；习惯模块需支持"补位占位"渲染逻辑。建议 A 落地稳定后再作为二期推进。</div>
+  </div>
+
+  <!-- ===== 对比 ===== -->
+  <div class="sec">
+    <h2><span class="no gray">⇄</span>方案对比速览</h2>
+    <table class="cmp">
+      <tr><th>维度</th><th>A · 紧凑清单式</th><th>B · 时间压力分栏</th><th>C · 整页重排</th></tr>
+      <tr><td><b>信息密度</b></td><td class="lv h">高（12+ 条/屏）</td><td class="lv m">中（8 条/屏）</td><td class="lv h">最高（含习惯 12+）</td></tr>
+      <tr><td><b>重点突出</b></td><td class="lv h">分段+进度条</td><td class="lv h">左右分栏</td><td class="lv h">继承 A 分段</td></tr>
+      <tr><td><b>改动范围</b></td><td class="lv h">1 个组件</td><td class="lv m">1~2 个组件</td><td class="lv l">5 个组件</td></tr>
+      <tr><td><b>窄屏表现</b></td><td class="lv h">天然单列，无适配成本</td><td class="lv l">需堆叠降级</td><td class="lv m">网格需断点重排</td></tr>
+      <tr><td><b>风险点</b></td><td>去卡片化需要适应 1~2 天</td><td>两列数量悬殊时失衡</td><td>周期长，回归面大</td></tr>
+      <tr><td><b>建议</b></td><td class="lv" style="color:#059669;font-size:14px">✓ 首选</td><td class="lv" style="color:#9ca3af">备选</td><td class="lv" style="color:#d97706">二期</td></tr>
+    </table>
+    <div class="note-card">🧩 <b>快捷复选框技术要点（三方案通用）</b>：点击即调用 <code style="background:#f3f4f6;padding:1px 6px;border-radius:4px;font-size:11px">updateTask(id, { status: '已完成', completed_time: now })</code>（与 TaskGallery 完成链路一致）；先本地乐观更新 UI，请求失败回滚并 <code style="background:#f3f4f6;padding:1px 6px;border-radius:4px;font-size:11px">toast.error</code>；今日已完成任务保留在折叠区，支持悬停撤销（恢复原状态）。</div>
+  </div>
+
+</div>
+
+<script>
+// 复选框交互：勾选 → 划线沉底 → 更新计数与进度条；悬停可撤销
+document.querySelectorAll('.cbx').forEach(cb => {
+  cb.addEventListener('click', () => {
+    const card = cb.closest('.a-card, .c-col, .mock, .sec');
+    const row = cb.closest('.a-row, .b-item, .cur-item');
+    const done = !cb.classList.contains('done');
+    cb.classList.toggle('done', done);
+    if (row) row.classList.toggle('row-done', done);
+    // 沉底：移到所属分组列表末尾（演示简化为移到整个列表容器末尾）
+    if (row && done) {
+      const list = row.parentElement;
+      const allRows = card.querySelectorAll('.a-rows, .b-col');
+      const last = allRows[allRows.length - 1];
+      if (last && last !== list) last.appendChild(row);
+    }
+    refreshCounts(card);
+  });
+});
+
+function refreshCounts(card) {
+  if (!card || !card.querySelector('.a-remain')) return;
+  const total = card.querySelectorAll('.cbx').length;
+  const done = card.querySelectorAll('.cbx.done').length;
+  const remain = total - done;
+  const r = card.querySelector('.a-remain'); if (r) r.textContent = remain;
+  const d = card.querySelector('.a-done'); if (d) d.textContent = done;
+  const fill = card.querySelector('.a-bar-fill');
+  const txt = card.querySelector('.a-prog-txt');
+  const pctEl = fill ? fill.parentElement.nextElementSibling.querySelector('span:last-child') : null;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  if (fill) fill.style.width = pct + '%';
+  if (txt) txt.textContent = '今日完成进度 ' + done + ' / ' + total;
+  if (pctEl) pctEl.textContent = pct + '%';
+  // 方案 C 的全局"今日已完成"统计联动（基线 3）
+  const g = document.getElementById('c-done-num');
+  if (g && card.closest('.sec').querySelector('.c-stats')) {
+    g.textContent = 3 + (card.querySelectorAll('.c-col .cbx.done').length);
+  }
+}
+</script>
+</body>
+</html>

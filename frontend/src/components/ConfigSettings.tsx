@@ -1,13 +1,22 @@
 import { useState, useEffect } from 'react'
 import { X, Save, Settings, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { getConfig, updateConfig } from '../api'
+import { useToast } from './ui/Toast'
 
 interface ConfigSettingsProps {
   isOpen: boolean
   onClose: () => void
 }
 
+const DEFAULT_CONFIG = {
+  push: { pushplusToken: '', wxpusherToken: '', wxpusherUid: '', hasPushplus: false, hasWxpusher: false },
+  email: { enabled: false, isConfigured: false, smtpServer: '', smtpPort: '587', sender: '', receiver: '', password: '' },
+  github: { token: '', repository: '', isConfigured: false },
+  schedule: { morningTime: '08:00', eveningTime: '22:00', morningEnabled: true, eveningEnabled: true },
+}
+
 const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
+  const toast = useToast()
   const [config, setConfig] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -23,10 +32,17 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
     setLoading(true)
     try {
       const data = await getConfig()
-      setConfig(data)
+      // Merge with defaults to ensure all sections exist
+      setConfig({
+        push: { ...DEFAULT_CONFIG.push, ...(data.push || {}) },
+        email: { ...DEFAULT_CONFIG.email, ...(data.email || {}) },
+        github: { ...DEFAULT_CONFIG.github, ...(data.github || {}) },
+        schedule: { ...DEFAULT_CONFIG.schedule, ...(data.schedule || {}) },
+      })
     } catch (error) {
       console.error('Failed to load config:', error)
-      alert('加载配置失败')
+      // Use defaults on error
+      setConfig({ ...DEFAULT_CONFIG })
     } finally {
       setLoading(false)
     }
@@ -35,22 +51,22 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
   const handleSave = async () => {
     // 验证配置
     if (!validateConfig()) {
-      alert('请检查配置项，确保必填项已填写')
+      toast.warning('请检查配置项', '确保必填项已填写')
       return
     }
-    
+
     setSaving(true)
     try {
       const result = await updateConfig(config)
-      
+
       if (result.success) {
-        alert(result.message || '配置保存成功！部分配置可能需要重启服务器才能生效。')
+        toast.success('配置保存成功', result.message || '部分配置可能需要重启服务器才能生效')
         onClose()
       } else {
-        alert(`保存失败: ${result.error}`)
+        toast.error('保存失败', result.error || '未知错误')
       }
     } catch (error: any) {
-      alert(`保存失败: ${error.message}`)
+      toast.error('保存失败', error.message || String(error))
     } finally {
       setSaving(false)
     }
@@ -76,14 +92,6 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
   
   const validateConfig = (): boolean => {
     const errors: Record<string, string> = {}
-    
-    // 验证 Notion 配置
-    if (!config.notion.token || config.notion.token === '***') {
-      errors['notion.token'] = 'Notion Token 不能为空'
-    }
-    if (!config.notion.databaseId) {
-      errors['notion.databaseId'] = 'Database ID 不能为空'
-    }
     
     // 验证邮箱配置（如果启用）
     if (config.email.enabled) {
@@ -155,57 +163,6 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
 
         {/* Content */}
         <div className="p-6 space-y-8">
-          {/* Notion 配置 */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
-                Notion 配置
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                {getStatusIcon(!!config.notion.token && !!config.notion.databaseId)}
-                {getStatusText(!!config.notion.token && !!config.notion.databaseId)}
-              </div>
-            </h3>
-            <div className="space-y-4 pl-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notion Token <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={config.notion.token}
-                  onChange={(e) => updateField('notion', 'token', e.target.value)}
-                  placeholder="ntn_***"
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    validationErrors['notion.token'] ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {validationErrors['notion.token'] && (
-                  <p className="mt-1 text-xs text-red-500">{validationErrors['notion.token']}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">如果显示为 ***, 表示已配置，留空则不修改</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Database ID <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={config.notion.databaseId}
-                  onChange={(e) => updateField('notion', 'databaseId', e.target.value)}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    validationErrors['notion.databaseId'] ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {validationErrors['notion.databaseId'] && (
-                  <p className="mt-1 text-xs text-red-500">{validationErrors['notion.databaseId']}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* 推送配置 */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
@@ -230,8 +187,10 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
                   placeholder="留空则不修改"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  {config.push.hasPushplus ? '✓ 已配置 PushPlus' : '未配置 PushPlus'}
+                <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+                  {config.push.hasPushplus ? (
+                    <><CheckCircle className="w-3 h-3 text-green-500" /> 已配置 PushPlus</>
+                  ) : '未配置 PushPlus'}
                 </p>
               </div>
               
@@ -259,8 +218,10 @@ const ConfigSettings = ({ isOpen, onClose }: ConfigSettingsProps) => {
                   placeholder="WxPusher 用户 ID"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  {config.push.hasWxpusher ? '✓ 已配置 WxPusher' : '未配置 WxPusher'}
+                <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+                  {config.push.hasWxpusher ? (
+                    <><CheckCircle className="w-3 h-3 text-green-500" /> 已配置 WxPusher</>
+                  ) : '未配置 WxPusher'}
                 </p>
               </div>
             </div>

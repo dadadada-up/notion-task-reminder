@@ -1,446 +1,351 @@
-# 🚀 Notion Task Manager
+# Personal Workbench
 
-基于 Notion API 的现代化任务管理系统，支持 Web 界面、多渠道推送提醒和自动化工作流。
+个人工作台 -- 基于 Cloudflare Workers + Pages 的全栈任务管理系统，支持任务管理、习惯打卡、周总结、智能推送等功能。
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)
 ![React](https://img.shields.io/badge/React-18.2-61dafb.svg)
-![Flask](https://img.shields.io/badge/Flask-3.0-black.svg)
+![Hono](https://img.shields.io/badge/Hono-4.x-black.svg)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20Pages-orange.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 </div>
 
 ---
 
-## ✨ 核心特性
+## 架构概览
 
-### 📱 现代化 Web 界面
-- **看板视图**：拖拽式任务管理，支持 Inbox/Pending/Doing/Done 状态切换
-- **实时统计**：任务数量、优先级分布、类型统计一目了然
-- **响应式设计**：完美适配桌面端，流畅的用户体验
-- **美观 UI**：基于 TailwindCSS + Lucide Icons 的现代化设计
+```
+用户浏览器 --> Cloudflare CDN
+                ├── Pages: React SPA + Pages Functions (API)
+                ├── D1: SQLite 数据库
+                └── R2: 对象存储（图片上传）
+```
 
-### 🔔 智能推送提醒
-- **PushPlus 微信推送**：精美的 HTML 模板，优先级颜色编码
-- **邮件提醒**：富文本邮件，支持 163/QQ/Gmail 等主流邮箱
-- **双时段提醒**：
-  - 早上 8:00 - 今日待办任务
-  - 晚上 22:00 - 今日完成总结
-
-### ⚙️ 自动化工作流
-- **GitHub Actions**：无需服务器，云端自动执行
-- **定时任务**：精确到分钟的定时提醒
-- **手动触发**：支持随时手动发送通知
-
-### 🎯 任务管理功能
-- **多维度筛选**：按状态、负责人、优先级、类型筛选
-- **关系管理**：支持父子任务、阻止关系
-- **优先级系统**：四象限时间管理（P0-P3）
-- **任务统计**：完成率、重要/紧急任务统计
+前后端一体化部署在 Cloudflare Pages，API 通过 Pages Functions 处理，无需独立 Worker 服务。
 
 ---
 
-## 🖼️ 界面预览
+## 核心特性
 
-### Web 看板界面
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Notion Task Manager                    [今日] [本周] [全部]    │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │   📥 Inbox   │  │  🔄 Doing    │  │  ✅ Done     │          │
-│  │   (3 tasks)  │  │  (5 tasks)   │  │  (8 tasks)   │          │
-│  ├──────────────┤  ├──────────────┤  ├──────────────┤          │
-│  │ 任务卡片...  │  │ 任务卡片...  │  │ 任务卡片...  │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
-│                                                                  │
-│  📊 统计面板：总任务 16 | 今日完成 8 | 重要 3 | 紧急 2         │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 任务管理
+- 看板视图 + 表格视图双模式切换
+- 五状态流转：收集箱 -> 进行中 -> 已完成 / 暂停 / 已放弃
+- 父子任务关系、阻止关系管理
+- 四象限优先级（P0-P3）
+- 自动流转：收集箱任务到开始时间自动转为进行中
+- 任务详情页支持查看/完成子任务
 
-### 推送消息示例
+### 习惯打卡
+- 每日/每周/每月多频率习惯追踪
+- 日历视图打卡记录
+- 习惯完成率统计
 
-**微信推送（PushPlus）**：
-- 渐变色标题
-- 优先级颜色标识（P0红色、P1橙色、P2紫色）
-- 卡片式任务布局
-- 任务统计图表
+### 周总结
+- 自动汇总本周任务完成情况
+- AI 辅助优化周总结内容（需配置 DeepSeek API Key）
+- 分享链接生成（支持密码保护）
 
-**邮件推送**：
-- 响应式 HTML 模板
-- 精美的视觉设计
-- 完整任务信息展示
-- 统计数据可视化
+### 智能推送
+- PushPlus 微信推送
+- 邮件通知（SMTP）
+- 双时段定时提醒（早 8:00 / 晚 22:00，通过 Workers Cron Triggers）
+
+### 认证与安全
+- JWT 无状态认证
+- 用户注册/登录
+- 密码 PBKDF2 哈希存储
 
 ---
 
-## 🚀 快速开始
+## 技术栈
 
-### 1. 环境准备
+| 层级 | 技术 | 说明 |
+|------|------|------|
+| 前端 | React 18 + TypeScript | SPA 单页应用 |
+| 样式 | TailwindCSS 3 | 原子化 CSS |
+| 构建 | Vite 5 | 前端构建工具 |
+| 后端框架 | Hono 4 | 轻量 Web 框架，运行在 Workers 上 |
+| 数据库 | Cloudflare D1 | SQLite 兼容的关系型数据库 |
+| 对象存储 | Cloudflare R2 | 图片上传存储 |
+| 部署 | Cloudflare Pages | 前端 + API 一体化部署 |
+| 定时任务 | Workers Cron Triggers | 原生 cron 支持 |
+| 认证 | JWT (jose) | 无状态 Token 认证 |
+
+---
+
+## 项目结构
+
+```
+workbench/
+├── frontend/                  # 前端 + Pages Functions（主部署目录）
+│   ├── src/                   # React 源码
+│   │   ├── App.tsx            # 主应用组件
+│   │   ├── api.ts             # API 请求层
+│   │   ├── types.ts           # TypeScript 类型定义
+│   │   ├── components/        # UI 组件
+│   │   │   ├── TaskGallery.tsx      # 任务看板视图
+│   │   │   ├── TaskTable.tsx        # 任务表格视图
+│   │   │   ├── TaskModal.tsx        # 任务编辑弹窗
+│   │   │   ├── TaskDetailModal.tsx  # 任务详情弹窗
+│   │   │   ├── TaskSelector.tsx     # 任务选择器（父子关系）
+│   │   │   ├── LoginPage.tsx        # 登录页
+│   │   │   ├── habits/              # 习惯打卡模块
+│   │   │   └── ...
+│   │   └── utils/             # 工具函数
+│   ├── functions/             # Pages Functions（服务端 API）
+│   │   ├── api/[[path]].ts    # /api/* 路由入口
+│   │   ├── share/[[path]].ts  # /share/* 路由入口
+│   │   └── _lib/              # API 业务逻辑（与 worker/src 同步）
+│   ├── public/
+│   │   ├── _routes.json       # Functions 路由规则
+│   │   └── _redirects         # SPA 路由回退
+│   ├── wrangler.toml          # Cloudflare 配置
+│   ├── vite.config.ts         # Vite 配置
+│   └── package.json
+├── worker/                    # 独立 Worker（可选，与 functions/_lib 同源）
+│   ├── src/
+│   │   ├── index.ts           # Hono 入口
+│   │   ├── db/schema.sql      # D1 建表 SQL
+│   │   ├── routes/            # 路由模块
+│   │   ├── services/          # 业务服务
+│   │   └── middleware/        # 中间件（JWT 鉴权）
+│   ├── wrangler.toml
+│   └── package.json
+└── scripts/                   # 辅助脚本
+```
+
+---
+
+## 本地开发
+
+### 环境要求
+
+- Node.js 18+
+- npm 9+
+- Cloudflare 账号（用于远程 D1 数据访问）
+
+### 启动后端（Worker）
 
 ```bash
-# 克隆项目
-git clone <your-repo-url>
-cd notion-task-reminder
+cd worker
+npm install
+npx wrangler dev
+# Ready on http://localhost:8787
+```
 
-# 安装 Python 依赖
-pip install -r requirements.txt
+Worker 默认连接远程 D1 数据库（只读模拟），本地修改会写入本地模拟的 Miniflare 存储。
 
-# 安装前端依赖
+如需本地环境变量（如 JWT_SECRET），创建 `worker/.dev.vars`：
+
+```env
+JWT_SECRET=your-dev-secret
+```
+
+### 启动前端
+
+```bash
 cd frontend
 npm install
-npm run build
-cd ..
-```
-
-### 2. 配置环境变量
-
-```bash
-# 复制配置文件
-cp .env.example .env
-
-# 编辑配置文件
-nano .env
-```
-
-**必需配置**：
-```env
-NOTION_TOKEN=your_notion_token
-DATABASE_ID=your_database_id
-```
-
-**可选配置**：
-```env
-# PushPlus 微信推送
-PUSHPLUS_TOKEN=your_pushplus_token
-
-# 邮件推送
-EMAIL_ENABLED=true
-EMAIL_SMTP_SERVER=smtp.163.com
-EMAIL_SMTP_PORT=465
-EMAIL_SENDER=your_email@163.com
-EMAIL_PASSWORD=your_auth_code
-EMAIL_RECEIVER=receiver@163.com
-```
-
-### 3. 启动服务
-
-#### 方式一：使用启动脚本（推荐）
-
-```bash
-# 一键启动（自动检查环境、安装依赖、构建前端、启动服务器）
-./start.sh
-```
-
-启动脚本会自动：
-- ✅ 检查 Python 版本
-- ✅ 创建并激活虚拟环境
-- ✅ 安装 Python 依赖
-- ✅ 检查前端构建
-- ✅ 加载环境变量
-- ✅ 启动 Flask 服务器
-
-#### 方式二：手动启动
-
-**启动后端**：
-```bash
-# 激活虚拟环境（如果有）
-source venv/bin/activate
-
-# 启动 Flask 服务器
-python backend/app.py
-```
-
-**前端开发模式**（可选）：
-```bash
-# 在另一个终端
-cd frontend
 npm run dev
+# Ready on http://localhost:3001
 ```
 
-#### 访问应用
+Vite 开发服务器会将 `/api/*` 请求代理到 `http://localhost:8787`。
 
-- **生产模式**: http://localhost:5000
-- **开发模式**: http://localhost:5173 (Vite dev server)
+### 访问应用
 
-🎉 启动成功！
+| 模式 | 地址 | 说明 |
+|------|------|------|
+| 前端开发 | http://localhost:3001 | Vite HMR 热更新 |
+| 后端 API | http://localhost:8787 | Wrangler 本地服务 |
+
+默认测试账号：`dada` / `test123456`
 
 ---
 
-## 📖 详细文档
+## 部署
 
-- **[完整安装指南](./docs/SETUP_GUIDE.md)** - 详细的配置步骤
-- **[实施总结](./docs/IMPLEMENTATION_SUMMARY.md)** - 开发实施详情
-- **[测试报告](./docs/TEST_REPORT.md)** - 完整测试报告
-- **[交付文档](./docs/DELIVERY.md)** - 项目交付说明
-- **[Notion 数据库结构](./notion_db_structure/notion_database_complete.md)** - 数据库字段说明
-- **[API 文档](#api-文档)** - RESTful API 接口说明
+### 一键部署到 Cloudflare Pages
+
+```bash
+# 1. 构建前端
+cd frontend
+npm run build
+
+# 2. 部署到 Pages（production）
+npx wrangler pages deploy dist --project-name=workbench --branch=main
+```
+
+### 配置 Secrets
+
+部署后需在 Cloudflare Dashboard 设置 Production 环境变量（Secrets）：
+
+| Secret | 说明 |
+|--------|------|
+| `JWT_SECRET` | JWT 签名密钥（必填） |
+| `PUSHPLUS_TOKEN` | PushPlus 微信推送 Token（可选） |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key，用于 AI 周总结优化（可选） |
+
+> 注意：Pages Secrets 仅在 Production 环境生效，Preview 环境无法访问。
+
+### 初始化数据库
+
+首次部署需初始化 D1 数据库：
+
+```bash
+cd worker
+npx wrangler d1 execute workbench-db --remote --file=src/db/schema.sql
+```
 
 ---
 
-## 🛠️ 技术栈
+## API 文档
 
-### 后端
-- **Flask 3.0** - Web 框架
-- **Requests** - HTTP 客户端
-- **Python 3.9+** - 编程语言
+所有 API 统一响应格式：
 
-### 前端
-- **React 18** - UI 框架
-- **TypeScript** - 类型安全
-- **TailwindCSS** - 样式框架
-- **Lucide React** - 图标库
-- **Axios** - HTTP 客户端
-- **Vite** - 构建工具
-
-### 自动化
-- **GitHub Actions** - CI/CD
-- **Cron** - 定时任务
-
----
-
-## 📡 API 文档
-
-### 基础接口
-
-#### 健康检查
-```http
-GET /api/health
-```
-
-#### 获取任务列表
-```http
-GET /api/tasks?status=doing&assignee=dada
-```
-
-**Query 参数**：
-- `status`: inbox/pedding/doing/done
-- `assignee`: 负责人名称
-- `priority`: P0/P1/P2/P3
-- `type`: 任务类型
-
-**响应示例**：
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "id": "xxx",
-      "name": "完成项目方案",
-      "status": "doing",
-      "priority": "P0 重要紧急",
-      "assignee": "dada",
-      "task_type": "工作"
-    }
-  ],
-  "count": 1
+  "data": { ... },
+  "count": 10
 }
 ```
 
-#### 更新任务
+### 认证
+
 ```http
-PUT /api/tasks/{task_id}
-Content-Type: application/json
-
-{
-  "status": "done",
-  "priority": "P1 重要不紧急"
-}
+POST /api/auth/register    # 注册
+POST /api/auth/login       # 登录，返回 JWT token
+GET  /api/auth/me          # 获取当前用户信息
 ```
 
-#### 获取统计数据
+后续请求需在 Header 中携带 Token：
+
+```
+Authorization: Bearer <token>
+```
+
+### 任务
+
 ```http
-GET /api/stats
+GET    /api/tasks              # 获取任务列表（支持筛选）
+POST   /api/tasks              # 创建任务
+GET    /api/tasks/:id          # 获取单个任务
+PUT    /api/tasks/:id          # 更新任务
+POST   /api/tasks/auto-transition  # 自动流转收集箱任务
 ```
 
-**响应示例**：
-```json
-{
-  "success": true,
-  "data": {
-    "total": 16,
-    "today_completed": 8,
-    "important_tasks": 3,
-    "urgent_tasks": 2,
-    "by_status": {
-      "inbox": 3,
-      "doing": 5,
-      "done": 8
-    }
-  }
-}
-```
+**任务筛选参数**：`?status=进行中&assignee=dada&priority=P0&type=工作`
 
-#### 发送通知
+### 习惯
+
 ```http
-POST /api/notify
-Content-Type: application/json
+GET    /api/habits             # 获取习惯列表
+POST   /api/habits             # 创建习惯
+PUT    /api/habits/:id         # 更新习惯
+GET    /api/habits/:id/stats   # 获取习惯统计
+```
 
-{
-  "type": "daily_todo",
-  "channels": ["pushplus", "email"]
-}
+### 打卡记录
+
+```http
+GET    /api/daily-logs         # 获取打卡记录
+POST   /api/daily-logs         # 创建打卡记录
+PUT    /api/daily-logs/:id     # 更新打卡记录
+```
+
+### 数据总览
+
+```http
+GET /api/data                  # 组合数据（任务 + 统计），前端主入口
+```
+
+### 周总结
+
+```http
+GET    /api/weekly-summary/current    # 获取当前周总结
+POST   /api/weekly-summary/save       # 保存周总结
+POST   /api/weekly-summary/ai-optimize  # AI 优化周总结
+```
+
+### 推送
+
+```http
+POST /api/notify               # 手动触发推送
+```
+
+### 分享
+
+```http
+POST   /api/share/create       # 创建分享链接
+GET    /share/:token           # 访问分享页面（无需认证）
 ```
 
 ---
 
-## 🔧 配置说明
+## 数据库表结构
 
-### Notion 数据库要求
+共 11 张表，核心表如下：
 
-数据库需包含以下字段：
-
-| 字段名称 | 类型 | 说明 |
-|---------|------|------|
-| 任务名称 | Title | 任务标题 |
-| 状态 | Status | inbox/pedding/doing/done |
-| 四象限 | Select | P0-P3 优先级 |
-| 任务类型 | Select | 工作/学习/生活等 |
-| 负责人 | Select | 任务执行者 |
-| 开始日期 | Date | 任务开始时间 |
-| 上级项目 | Relation | 父任务关系 |
-| 子级项目 | Relation | 子任务关系 |
-| 被阻止 | Relation | 阻止关系 |
-
-详见 [数据库结构文档](./notion_db_structure/notion_database_complete.md)
-
-### GitHub Actions 配置
-
-在仓库 Settings → Secrets 中添加：
-
-| Secret 名称 | 必需 | 说明 |
-|------------|------|------|
-| `NOTION_TOKEN` | ✅ | Notion Integration Token |
-| `DATABASE_ID` | ✅ | Notion 数据库 ID |
-| `PUSHPLUS_TOKEN` | ⭕ | PushPlus Token |
-| `EMAIL_ENABLED` | ⭕ | 是否启用邮件 |
-| `EMAIL_SENDER` | ⭕ | 发件人邮箱 |
-| `EMAIL_PASSWORD` | ⭕ | 邮箱授权码 |
-| `EMAIL_RECEIVER` | ⭕ | 收件人邮箱 |
+| 表名 | 说明 |
+|------|------|
+| `users` | 用户表 |
+| `tasks` | 任务表（支持 parent_id 父子关系） |
+| `task_dependencies` | 任务阻止关系（多对多） |
+| `task_images` | 任务图片（关联 R2） |
+| `habits` | 习惯表 |
+| `daily_logs` | 打卡记录表 |
+| `weekly_summaries` | 周总结表 |
+| `share_links` | 分享链接表 |
+| `activity_logs` | 活动日志表 |
+| `app_config` | 系统配置表 |
 
 ---
 
-## 📅 定时任务
+## 定时任务
 
-### 🎨 前端配置界面
+通过 Cloudflare Workers Cron Triggers 实现，配置在 `wrangler.toml`：
 
-本项目支持通过前端界面配置定时任务，配置会自动同步到 GitHub Actions！
-
-**使用方法：**
-1. 启动 Web 应用
-2. 点击"定时消息设置"按钮
-3. 配置定时任务：
-   - 选择消息类型（今日待办/今日完成）
-   - 设置推送时间（北京时间）
-   - 添加自定义消息（可选）
-   - 启用/禁用任务
-4. 点击"保存设置"
-5. 系统自动更新 GitHub Actions workflow
-
-**默认配置：**
-- **早上 8:00**（北京时间）- 发送今日待办任务
-- **晚上 21:00**（北京时间）- 发送今日完成总结
-
-### 🔧 手动触发
-
-1. 访问 GitHub Actions 页面
-2. 选择 "Daily Task Reminder"
-3. 点击 "Run workflow"
-4. 选择任务类型和参数：
-   - 任务类型（daily_todo/daily_done）
-   - 操作类型（send/combined）
-   - 强制发送（忽略时间检查）
-   - 自定义发送时间
-   - 调试模式
-
-### 📖 详细文档
-
-查看 [定时任务集成文档](./docs/SCHEDULE_INTEGRATION.md) 了解：
-- 架构设计
-- 配置说明
-- 时间转换
-- 故障排查
-
----
-
-## 🐛 故障排除
-
-### 常见问题
-
-**Q: 前端 TypeScript 报错？**
-```bash
-cd frontend && npm install
+```toml
+[triggers]
+crons = [
+  "0 0 * * *",    # UTC 00:00 = 北京时间 08:00（今日待办提醒）
+  "0 14 * * *"    # UTC 14:00 = 北京时间 22:00（今日完成总结）
+]
 ```
 
-**Q: Flask 启动失败？**
-```bash
-pip install -r requirements.txt
-```
-
-**Q: Notion API 401 错误？**
-- 检查 Token 是否正确
-- 确认 Integration 已连接到数据库
-
-**Q: 收不到推送？**
-- PushPlus: 检查是否关注公众号
-- Email: 检查授权码是否正确，查看垃圾邮件
-
-更多问题请查看 [安装指南](./docs/SETUP_GUIDE.md#常见问题)
+前端也提供可视化配置界面，支持动态调整推送时间和渠道。
 
 ---
 
-## 🛠️ 工具脚本
+## 故障排除
 
-项目提供了多个实用脚本来简化开发和部署：
+**Q: 本地开发时 API 返回 401？**
+检查 `worker/.dev.vars` 是否配置了 `JWT_SECRET`，并重新登录获取新 token。
 
-### 主要脚本
-- **`start.sh`** - 启动服务器（自动检查环境、安装依赖、构建前端）
-- **`auto_complete.sh`** - 自动完成任务（定时任务脚本）
-- **`install_dependencies.sh`** - 安装所有依赖（Python + Node.js）
+**Q: 部署后登录返回 500？**
+确认已在 Cloudflare Dashboard 的 Pages Production 环境设置了 `JWT_SECRET` Secret。
 
-### 工具脚本（scripts/目录）
-- **`scripts/fix_env.sh`** - 修复环境变量配置
-- **`scripts/fix_git_secrets.sh`** - 清理Git历史中的敏感信息
+**Q: 子任务不显示？**
+确保 `/api/data` 端点正确填充了 `child_ids`（已从数据库查询，非硬编码空数组）。
 
-### 测试脚本（tests/目录）
-- **`tests/run_tests.sh`** - 运行所有测试
-- **`tests/run_unit_tests.sh`** - 运行单元测试
+**Q: workers.dev 域名无法访问？**
+国内网络环境下 `workers.dev` 和 `pages.dev` 可能被墙，建议使用自定义域名。
 
 ---
 
-## 📝 更新日志
-
-查看 [docs/changelog/](./docs/changelog/) 目录了解详细的功能更新和bug修复记录。
-
----
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
----
-
-## 📄 License
+## License
 
 MIT License
 
 ---
 
-## 🙏 致谢
-
-- [Notion API](https://developers.notion.com/)
-- [PushPlus](http://www.pushplus.plus/)
-- [React](https://react.dev/)
-- [Flask](https://flask.palletsprojects.com/)
-- [TailwindCSS](https://tailwindcss.com/)
-
----
-
 <div align="center">
 
-**Made with ❤️ by dada**
+**Made with care by dada**
 
-[⬆ 回到顶部](#-notion-task-manager)
+[Cloudflare Pages](https://pages.cloudflare.com/) | [Hono](https://hono.dev/) | [React](https://react.dev/)
 
 </div>
