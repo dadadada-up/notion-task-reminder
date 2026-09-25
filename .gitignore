@@ -75,3 +75,14 @@ update_*.sh
 .env.backup
 .env.*.backup
 *.backup
+
+# Cloudflare Workers
+.dev.vars
+.wrangler/
+worker/node_modules/
+worker/.wrangler/
+
+# Frontend
+frontend/node_modules/
+frontend/.wrangler/
+frontend/dist/
